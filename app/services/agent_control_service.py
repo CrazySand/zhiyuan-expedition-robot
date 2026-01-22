@@ -6,7 +6,7 @@ class AgentControlService:
 
     def __init__(self, client: httpx.AsyncClient, server_ip: str = "127.0.0.1"):
         self.client = client
-        self.serverx_ip = server_ip
+        self.server_ip = server_ip
 
     async def set_agent_properties(self, mode: Literal["only_voice", "voice_face", "normal"]) -> dict:
         """
@@ -54,14 +54,3 @@ class AgentControlService:
         response = await self.client.post(url, json=data)
         return response.json()
 
-
-async def main():
-    agent_control_service = AgentControlService(httpx.AsyncClient())
-    # result = await agent_control_service.set_agent_properties("normal")
-    result = await agent_control_service.get_agent_properties()
-    # print(result)
-
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())

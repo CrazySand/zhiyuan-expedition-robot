@@ -14,13 +14,10 @@ class AppRobotService:
         response = await self.client.post(url, json=data)
         return response.json()
 
+    async def get_cloud_face_db_info(self):
+        """获取云端人脸数据库信息"""
+        url = f"http://{self.server_ip}:59888/api/cloud-face-db-info"
+        response = await self.client.get(url)
+        return response.json()
 
-async def main():
-    e = AppRobotService(httpx.AsyncClient(
-        headers={"Authorization": "Bearer your-secret-key-here"}, timeout=60))
-    r = await e.agent_mode_reboot()
-    print(r)
 
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())

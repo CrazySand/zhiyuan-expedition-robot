@@ -1,7 +1,7 @@
 import httpx
 
 
-class TTSClient:
+class TTSService:
     """
     A2 机器人配有扬声器，
     在有网络的情况下可以进行 TTS 播报，
@@ -163,11 +163,3 @@ class TTSClient:
         return response.json()
 
 
-async def main():
-    # await TTSClient(httpx.AsyncClient(timeout=10), "127.0.0.1").play_tts("傻逼张辰与，死哪里去了，买饭掉屎坑里面去了对吧")
-    # await TTSClient(httpx.AsyncClient(timeout=10), "127.0.0.1").play_tts("")
-    await TTSClient(httpx.AsyncClient(timeout=10), "127.0.0.1").get_audio_status("hafhjkqwjwefk")
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())

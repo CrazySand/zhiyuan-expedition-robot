@@ -1,18 +1,21 @@
+# =============================== 依赖导入 =======================================
+
+import json
+import subprocess
+import sys
+
 import httpx
-from typing import Literal
-from fastapi import FastAPI, Request, Depends, HTTPException, Header, Query, Body
+import aiofiles
+
+from fastapi import FastAPI, Request, HTTPException, Header, Query, Body
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-import service
-from utils import run_command_live_output
 
-SECRET_KEY = "your-secret-key-here"
 
-# =======================================================================
+# ================================ 应用初始化 =======================================
 
 app = FastAPI()
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,9 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-http_client = httpx.AsyncClient(timeout=10)
-
-# =======================================================================
+# =============================== 异常处理器 ========================================
 
 
 @app.exception_handler(HTTPException)
@@ -84,16 +85,41 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-async def authenticate(
-    authorization: str = Header(default="", alias="Authorization")
-):
-    # 检查 Authorization header 格式并验证 token
-    if not authorization or not authorization.startswith("Bearer ") or authorization[7:] != SECRET_KEY:
-        raise HTTPException(status_code=401, detail="认证失败")
-    return authorization[7:]
+# ================================ 工具函数 =======================================
 
-# =======================================================================
+def run_command_live_output(command):
+    """
+    执行系统命令并实时打印输出，执行完成后函数才返回。
+    适合耗时较长的命令（如 apt update），可实时看到执行过程。
 
+    Args:
+        command (str): 要在 Ubuntu 系统上执行的系统命令字符串（如 "sudo apt update"）
+
+    Returns:
+        int: 命令执行返回码（0 表示成功，-1 表示执行过程中出现异常）
+    """
+    # 启动子进程，stdout/stderr 重定向到管道
+    process = subprocess.Popen(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # 将错误输出合并到标准输出，方便实时打印
+        text=True,
+        encoding='utf-8',
+        bufsize=1  # 行缓冲，保证输出实时性
+    )
+
+    # 实时读取并打印输出(调试)
+    for line in process.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
+    # 阻塞等待命令执行完成，获取返回码
+    process.wait()
+    return process.returncode
+
+
+# ================================  API 路由 =======================================
 
 @app.post("/api/agent-mode-reboot")
 async def agent_mode_reboot():
@@ -106,19 +132,19 @@ async def agent_mode_reboot():
         "data": None
     }
 
-# =======================================================================
-
 
 @app.get("/api/cloud-face-db-info")
 async def get_cloud_face_db_info():
     """获取云端人脸数据库信息"""
-    user_info = await service.read_cloud_face_db_info()
+    async with aiofiles.open("/agibot/data/param/interaction/face_id/user_info.json", "r", encoding="utf-8") as f:
+        data = await f.read()
     return {
         "code": 0,
         "msg": "success",
-        "data": user_info
+        "data": json.loads(data)
     }
 
+# ================================  应用启动 =======================================
 
 if __name__ == "__main__":
     import uvicorn
