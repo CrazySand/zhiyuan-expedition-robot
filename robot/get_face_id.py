@@ -25,14 +25,20 @@ from ros2_plugin_proto.msg import RosMsgWrapper
 
 from aimdk.protocol_pb2 import FaceIdResult
 
+import requests
+
+PC_CALLBACK_URL = "http://127.0.0.1:8001/api/face-id-callback"
+X_API_KEY = "your-secret-key-here"
+
 
 def handle_face_id_result(face_id_result: dict):
     """处理 FaceID 结果"""
-    pass
+    requests.post(PC_CALLBACK_URL, json=face_id_result, headers={
+                  "Content-Type": "application/json", "X-API-KEY": X_API_KEY})
 
 
 class FaceIdSubscriber(Node):
-    
+
     def __init__(self):
         super().__init__("face_id_subscriber")
 
@@ -72,8 +78,9 @@ class FaceIdSubscriber(Node):
 
             self.get_logger().info(
                 f"FaceID 结果: {json.dumps(MessageToDict(face_id_result, preserving_proto_field_name=True), ensure_ascii=False, indent=2)}")
-            
-            handle_face_id_result(MessageToDict(face_id_result, preserving_proto_field_name=True), ensure_ascii=False, indent=4)
+
+            handle_face_id_result(MessageToDict(
+                face_id_result, preserving_proto_field_name=True), ensure_ascii=False, indent=4)
 
         except Exception as e:
             self.get_logger().error(f"解析 FaceID 数据时出现错误: {e}")
@@ -91,6 +98,7 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
 
 """
 (mydev) agi@ubuntu-orin:/agibot/data/param/interaction/face_id$ ls
