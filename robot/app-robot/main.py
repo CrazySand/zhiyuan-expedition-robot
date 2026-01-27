@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+import os
 import asyncio
 from typing import Optional
 
@@ -93,7 +94,7 @@ class FaceRecognitionProcessManager:
     """人脸识别进程管理器，用于启动和停止人脸识别 Python 程序"""
 
     def __init__(self):
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.process: Optional[subprocess.Popen] = None
         self.is_running = False
         self._lock = asyncio.Lock()
 
@@ -123,13 +124,12 @@ class FaceRecognitionProcessManager:
                 python /agibot/data/home/agi/Desktop/get_face_id.py
                 """
 
-                # 使用 bash -c 执行命令
-                self.process = await asyncio.create_subprocess_exec(
-                    "bash",
-                    "-c",
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                # 使用 subprocess.Popen 执行命令，创建新的进程组以便后续可以终止所有子进程
+                self.process = subprocess.Popen(
+                    ["bash", "-c", command],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid  # 创建新的进程组，这样终止时可以终止所有子进程
                 )
 
                 self.is_running = True
@@ -159,16 +159,37 @@ class FaceRecognitionProcessManager:
 
             try:
                 if self.process:
-                    # 终止进程（这会终止整个 bash 进程及其子进程）
-                    self.process.terminate()
+                    # 使用进程组终止所有子进程
+                    try:
+                        # 获取进程组 ID 并终止整个进程组（包括所有子进程）
+                        pgid = os.getpgid(self.process.pid)
+                        os.killpg(pgid, 15)  # SIGTERM，优雅终止
+                    except (ProcessLookupError, OSError):
+                        # 进程组不存在或进程已结束，直接终止进程
+                        try:
+                            self.process.terminate()
+                        except ProcessLookupError:
+                            # 进程已不存在
+                            pass
 
                     # 等待进程结束（最多等待 5 秒）
                     try:
-                        await asyncio.wait_for(self.process.wait(), timeout=5.0)
+                        await asyncio.wait_for(
+                            asyncio.get_event_loop().run_in_executor(None, self.process.wait),
+                            timeout=5.0
+                        )
                     except asyncio.TimeoutError:
-                        # 如果进程没有正常结束，强制杀死
-                        self.process.kill()
-                        await self.process.wait()
+                        # 如果进程没有正常结束，强制杀死整个进程组
+                        try:
+                            pgid = os.getpgid(self.process.pid)
+                            os.killpg(pgid, 9)  # SIGKILL，强制终止
+                        except (ProcessLookupError, OSError):
+                            # 如果进程组不存在，直接杀死进程
+                            try:
+                                self.process.kill()
+                            except ProcessLookupError:
+                                pass
+                        self.process.wait()
 
                     self.process = None
 
@@ -215,7 +236,9 @@ class FaceRecognitionProcessManager:
     async def _monitor_process(self):
         """监控进程状态，如果进程意外退出则自动更新状态"""
         if self.process:
-            await self.process.wait()
+            # 使用 asyncio 在后台等待进程结束
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.process.wait)
             async with self._lock:
                 if self.is_running:
                     # 进程意外退出，更新状态
@@ -290,37 +313,23 @@ async def get_cloud_face_db_info():
 @app.post("/api/face-recognition/start")
 async def start_face_recognition():
     """启动人脸识别 Python 程序"""
-    try:
-        result = await face_recognition_process_manager.start()
-        return {
-            "code": 0,
-            "msg": "success",
-            "data": result
-        }
-    except HTTPException as e:
-        return {
-            "code": e.status_code,
-            "msg": e.detail,
-            "data": None
-        }
+    result = await face_recognition_process_manager.start()
+    return {
+        "code": 0,
+        "msg": "success",
+        "data": result
+    }
 
 
 @app.post("/api/face-recognition/stop")
 async def stop_face_recognition():
     """停止人脸识别 Python 程序"""
-    try:
-        result = await face_recognition_process_manager.stop()
-        return {
-            "code": 0,
-            "msg": "success",
-            "data": result
-        }
-    except HTTPException as e:
-        return {
-            "code": e.status_code,
-            "msg": e.detail,
-            "data": None
-        }
+    result = await face_recognition_process_manager.stop()
+    return {
+        "code": 0,
+        "msg": "success",
+        "data": result
+    }
 
 
 @app.get("/api/face-recognition/status")

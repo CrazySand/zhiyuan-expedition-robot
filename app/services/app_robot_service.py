@@ -20,4 +20,21 @@ class AppRobotService:
         response = await self.client.get(url)
         return response.json()
 
+    async def start_face_recognition(self):
+        """启动人脸识别 Python 程序"""
+        url = f"http://{self.server_ip}:59888/api/face-recognition/start"
+        response = await self.client.post(url)
+        return response.json()
+    
+    async def stop_face_recognition(self):
+        """停止人脸识别 Python 程序"""
+        url = f"http://{self.server_ip}:59888/api/face-recognition/stop"
+        response = await self.client.post(url)
+        return response.json()
+    
+    async def get_face_recognition_status(self):
+        """获取人脸识别进程状态"""
+        url = f"http://{self.server_ip}:59888/api/face-recognition/status"
+        response = await self.client.get(url)
+        return response.json()
 

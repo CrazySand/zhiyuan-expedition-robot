@@ -128,9 +128,23 @@ async def face_id_callback(data: dict = Body(..., embed=False)):
 @router.get("/face/cloud-face-db-info")
 async def get_cloud_face_db_info():
     """获取云端人脸数据库信息"""
-    user_info = await app_robot_service.get_cloud_face_db_info()
-    return {
-        "code": 0,
-        "msg": "success",
-        "data": user_info["data"]
-    }
+    result = await app_robot_service.get_cloud_face_db_info()
+    return result
+
+@router.post("/face/start-face-recognition")
+async def start_face_recognition():
+    """启动人脸识别 Python 程序"""
+    result = await app_robot_service.start_face_recognition()
+    return result
+
+@router.post("/face/stop-face-recognition")
+async def stop_face_recognition():
+    """停止人脸识别 Python 程序"""
+    result = await app_robot_service.stop_face_recognition()
+    return result
+
+@router.get("/face/face-recognition-status")
+async def get_face_recognition_status():
+    """获取人脸识别进程状态"""
+    result = await app_robot_service.get_face_recognition_status()
+    return result
