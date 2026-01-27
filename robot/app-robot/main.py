@@ -3,6 +3,8 @@
 import json
 import subprocess
 import sys
+import asyncio
+from typing import Optional
 
 import httpx
 import aiofiles
@@ -85,6 +87,146 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+# ================================ 人脸识别进程管理器 =======================================
+
+class FaceRecognitionProcessManager:
+    """人脸识别进程管理器，用于启动和停止人脸识别 Python 程序"""
+
+    def __init__(self):
+        self.process: Optional[asyncio.subprocess.Process] = None
+        self.is_running = False
+        self._lock = asyncio.Lock()
+
+    async def start(self) -> dict:
+        """
+        启动人脸识别 Python 程序（包含环境设置）
+
+        Returns:
+            dict: 启动结果，包含进程 ID
+
+        Raises:
+            HTTPException: 如果程序已在运行或启动失败
+        """
+        async with self._lock:
+            if self.is_running:
+                raise HTTPException(status_code=400, detail="人脸识别程序已在运行中")
+
+            try:
+                # 构建完整的启动命令（包含所有环境设置）
+                command = """
+                source /opt/ros/humble/setup.bash && \
+                source /agibot/data/home/agi/Desktop/agibot_a2_aimdk-dev1.3/prebuilt/ros2_plugin_proto_aarch64/share/ros2_plugin_proto/local_setup.bash && \
+                source /agibot/data/home/agi/Desktop/mydev/bin/activate && \
+                export ROS_DOMAIN_ID=232 && \
+                export ROS_LOCALHOST_ONLY=0 && \
+                export FASTRTPS_DEFAULT_PROFILES_FILE=/agibot/software/v0/entry/bin/cfg/ros_dds_configuration.xml && \
+                python /agibot/data/home/agi/Desktop/get_face_id.py
+                """
+
+                # 使用 bash -c 执行命令
+                self.process = await asyncio.create_subprocess_exec(
+                    "bash",
+                    "-c",
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+
+                self.is_running = True
+                asyncio.create_task(self._monitor_process())
+
+                return {
+                    "pid": self.process.pid,
+                    "status": "started"
+                }
+            except Exception as e:
+                self.is_running = False
+                raise HTTPException(status_code=500, detail=f"启动失败: {str(e)}")
+
+    async def stop(self) -> dict:
+        """
+        停止人脸识别 Python 程序
+
+        Returns:
+            dict: 停止结果
+
+        Raises:
+            HTTPException: 如果程序未运行
+        """
+        async with self._lock:
+            if not self.is_running:
+                raise HTTPException(status_code=400, detail="人脸识别程序未运行")
+
+            try:
+                if self.process:
+                    # 终止进程（这会终止整个 bash 进程及其子进程）
+                    self.process.terminate()
+
+                    # 等待进程结束（最多等待 5 秒）
+                    try:
+                        await asyncio.wait_for(self.process.wait(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        # 如果进程没有正常结束，强制杀死
+                        self.process.kill()
+                        await self.process.wait()
+
+                    self.process = None
+
+                self.is_running = False
+
+                return {
+                    "status": "stopped"
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"停止失败: {str(e)}")
+
+    async def get_status(self) -> dict:
+        """
+        获取人脸识别进程状态
+
+        Returns:
+            dict: 进程状态信息
+        """
+        async with self._lock:
+            if self.is_running and self.process:
+                # 检查进程是否真的还在运行
+                return_code = self.process.returncode
+                if return_code is not None:
+                    # 进程已结束，但状态未更新（意外退出）
+                    self.is_running = False
+                    self.process = None
+                    return {
+                        "is_running": False,
+                        "status": "stopped",
+                        "return_code": return_code
+                    }
+
+                return {
+                    "is_running": True,
+                    "status": "running",
+                    "pid": self.process.pid
+                }
+            else:
+                return {
+                    "is_running": False,
+                    "status": "stopped"
+                }
+
+    async def _monitor_process(self):
+        """监控进程状态，如果进程意外退出则自动更新状态"""
+        if self.process:
+            await self.process.wait()
+            async with self._lock:
+                if self.is_running:
+                    # 进程意外退出，更新状态
+                    self.is_running = False
+                    self.process = None
+
+
+# 创建人脸识别进程管理器实例
+face_recognition_process_manager = FaceRecognitionProcessManager()
+
+
 # ================================ 工具函数 =======================================
 
 def run_command_live_output(command):
@@ -143,6 +285,54 @@ async def get_cloud_face_db_info():
         "msg": "success",
         "data": json.loads(data)
     }
+
+
+@app.post("/api/face-recognition/start")
+async def start_face_recognition():
+    """启动人脸识别 Python 程序"""
+    try:
+        result = await face_recognition_process_manager.start()
+        return {
+            "code": 0,
+            "msg": "success",
+            "data": result
+        }
+    except HTTPException as e:
+        return {
+            "code": e.status_code,
+            "msg": e.detail,
+            "data": None
+        }
+
+
+@app.post("/api/face-recognition/stop")
+async def stop_face_recognition():
+    """停止人脸识别 Python 程序"""
+    try:
+        result = await face_recognition_process_manager.stop()
+        return {
+            "code": 0,
+            "msg": "success",
+            "data": result
+        }
+    except HTTPException as e:
+        return {
+            "code": e.status_code,
+            "msg": e.detail,
+            "data": None
+        }
+
+
+@app.get("/api/face-recognition/status")
+async def get_face_recognition_status():
+    """获取人脸识别进程状态"""
+    status = await face_recognition_process_manager.get_status()
+    return {
+        "code": 0,
+        "msg": "success",
+        "data": status
+    }
+
 
 # ================================  应用启动 =======================================
 

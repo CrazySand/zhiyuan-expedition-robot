@@ -100,14 +100,28 @@ async def get_agent_properties():
 
 # ============================== Face ========================================
 
-@router.post("/face-id-callback")
-async def face_id_callback(data: dict = Body(..., embed=True)):
+@router.post("/face/face-recognition-callback")
+async def face_id_callback(data: dict = Body(..., embed=False)):
     """接收机器人端 FaceID 识别结果回调（由机器人端主动调用）"""
-    print(data)
+    timestamp = data["timestamp"]
+    face_id = data["face_id"]
+    confidence = data["confidence"]
+
+    # 在这里把以上数据发送到中控即可
+    print(f"""
+    收到 FaceID 识别结果回调:
+    timestamp: {timestamp}
+    face_id: {face_id}
+    confidence: {confidence}
+    """)
+    pass
+
     return {
         "code": 0,
         "msg": "success",
-        "data": data
+        "data": {
+            "face_id": face_id,
+        }
     }
 
 
@@ -118,5 +132,5 @@ async def get_cloud_face_db_info():
     return {
         "code": 0,
         "msg": "success",
-        "data": user_info
+        "data": user_info["data"]
     }

@@ -16,25 +16,35 @@
     }
   ]
 }
+
+source /opt/ros/humble/setup.bash
+source /agibot/data/home/agi/Desktop/agibot_a2_aimdk-dev1.3/prebuilt/ros2_plugin_proto_aarch64/share/ros2_plugin_proto/local_setup.bash
+source /agibot/data/home/agi/Desktop/mydev/bin/activate
+export ROS_DOMAIN_ID=232
+export ROS_LOCALHOST_ONLY=0
+export FASTRTPS_DEFAULT_PROFILES_FILE=/agibot/software/v0/entry/bin/cfg/ros_dds_configuration.xml
+python /agibot/data/home/agi/Desktop/get_face_id.py
 """
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from ros2_plugin_proto.msg import RosMsgWrapper
-
 from aimdk.protocol_pb2 import FaceIdResult
 
+import json
+from google.protobuf.json_format import MessageToDict
 import requests
 
-PC_CALLBACK_URL = "http://127.0.0.1:8001/api/face-id-callback"
-X_API_KEY = "your-secret-key-here"
+PC_CALLBACK_URL = "http://127.0.0.1:8001/api/face/face-recognition-callback"
+X_API_KEY = "NZGNJZMSDZJD"
 
 
-def handle_face_id_result(face_id_result: dict):
+def callback_pc_api(face_info: dict):
     """处理 FaceID 结果"""
-    requests.post(PC_CALLBACK_URL, json=face_id_result, headers={
+    response = requests.post(PC_CALLBACK_URL, json=face_info, headers={
                   "Content-Type": "application/json", "X-API-KEY": X_API_KEY})
+    print(response.json())
 
 
 class FaceIdSubscriber(Node):
@@ -72,15 +82,11 @@ class FaceIdSubscriber(Node):
             face_id_result = FaceIdResult()
             face_id_result.ParseFromString(raw_bytes)
 
+            face_info = MessageToDict(face_id_result, preserving_proto_field_name=True)["faces"][0]
+            callback_pc_api(face_info)
             # 日志输出
-            import json
-            from google.protobuf.json_format import MessageToDict
-
-            self.get_logger().info(
-                f"FaceID 结果: {json.dumps(MessageToDict(face_id_result, preserving_proto_field_name=True), ensure_ascii=False, indent=2)}")
-
-            handle_face_id_result(MessageToDict(
-                face_id_result, preserving_proto_field_name=True), ensure_ascii=False, indent=4)
+            # self.get_logger().info(
+            #     f"FaceID 结果: {face_info}")
 
         except Exception as e:
             self.get_logger().error(f"解析 FaceID 数据时出现错误: {e}")
@@ -98,13 +104,6 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
-
-"""
-(mydev) agi@ubuntu-orin:/agibot/data/param/interaction/face_id$ ls
-face_features  offline_face_features  user_info.json
-
-"""
 
 
 if __name__ == "__main__":

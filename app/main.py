@@ -13,8 +13,8 @@ from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT
 class AuthMiddleware(BaseHTTPMiddleware):
     """认证中间件，用于验证请求头中的 Authorization 字段是否包含正确的密钥"""
     async def dispatch(self, request, call_next):
-        authorization = request.headers.get("Authorization")
-        if not authorization or not authorization.startswith("Bearer ") or authorization[7:] != SECRET_KEY:
+        x_api_key = request.headers.get("X-API-KEY")
+        if x_api_key != SECRET_KEY:
             return JSONResponse(
                 status_code=200,
                 content={"code": 401, "msg": "认证失败", "data": None}

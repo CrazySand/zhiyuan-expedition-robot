@@ -1,4 +1,4 @@
-SECRET_KEY = "your-secret-key-here"
+SECRET_KEY = "NZGNJZMSDZJD"
 
 SERVER_HOST = "0.0.0.0"
 
