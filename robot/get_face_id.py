@@ -36,14 +36,14 @@ import json
 from google.protobuf.json_format import MessageToDict
 import requests
 
-PC_CALLBACK_URL = "http://127.0.0.1:8001/api/face/face-recognition-callback"
+PC_CALLBACK_URL = "http://127.0.0.1:8001/api/robot-call-back/face/recognition"
 X_API_KEY = "NZGNJZMSDZJD"
 
 
 def callback_pc_api(face_info: dict):
     """处理 FaceID 结果"""
     response = requests.post(PC_CALLBACK_URL, json=face_info, headers={
-                  "Content-Type": "application/json", "X-API-KEY": X_API_KEY})
+        "Content-Type": "application/json", "X-API-KEY": X_API_KEY})
     print(response.json())
 
 
@@ -82,7 +82,8 @@ class FaceIdSubscriber(Node):
             face_id_result = FaceIdResult()
             face_id_result.ParseFromString(raw_bytes)
 
-            face_info = MessageToDict(face_id_result, preserving_proto_field_name=True)["faces"][0]
+            face_info = MessageToDict(
+                face_id_result, preserving_proto_field_name=True)["faces"][0]
             callback_pc_api(face_info)
             # 日志输出
             # self.get_logger().info(

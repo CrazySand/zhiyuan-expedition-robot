@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-
 from app.handlers import http_exception_handler, global_exception_handler, validation_exception_handler
 from app.api import router
 from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT
