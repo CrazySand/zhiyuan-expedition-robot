@@ -32,11 +32,10 @@ from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from ros2_plugin_proto.msg import RosMsgWrapper
 from aimdk.protocol_pb2 import FaceIdResult
 
-import json
 from google.protobuf.json_format import MessageToDict
 import requests
 
-PC_CALLBACK_URL = "http://127.0.0.1:8001/api/robot-call-back/face/recognition"
+PC_CALLBACK_URL = "http://127.0.0.1:8001/api/webhooks/face-recognition"
 X_API_KEY = "NZGNJZMSDZJD"
 
 

@@ -13,74 +13,66 @@ router = APIRouter(prefix="/api")
 
 # ============================= TTS ========================================
 
+# POST   /api/tts         → 发起播报（body: text）
+# DELETE /api/tts         → 打断播报
+# GET    /api/tts/status  → 查询播报状态（query: trace_id）
+# GET    /api/tts/volume  → 获取音量
+# PUT    /api/tts/volume  → 设置音量（body: audio_volume）
 
-@router.post("/tts/play-tts")
+
+@router.post("/tts")
 async def play_tts(text: str = Body(..., min_length=1, max_length=200, description="播报文本内容", embed=True)):
-    """TTS 播报"""
+    """发起 TTS 播报"""
     result = await rac.play_tts(text)
     trace_id = result["trace_id"]
     return {
         "code": 0,
         "msg": "success",
-        "data": {
-            "trace_id": trace_id
-        }
+        "data": {"trace_id": trace_id},
     }
 
 
-@router.post("/tts/stop-tts")
+@router.delete("/tts")
 async def stop_tts():
-    """TTS 打断"""
+    """打断当前 TTS 播报"""
     result = await rac.stop_tts()
-    return {
-        "code": 0,
-        "msg": "success",
-        "data": None
-    }
+    return {"code": 0, "msg": "success", "data": None}
 
 
-@router.get("/tts/get-audio-status")
+@router.get("/tts/status")
 async def get_audio_status(trace_id: str = Query(..., description="播报 id", min_length=1, max_length=100)):
-    """TTS 播报状态查询"""
+    """查询 TTS 播报状态"""
     result = await rac.get_audio_status(trace_id)
     tts_status = result["tts_status"]["tts_status"]
     return {
         "code": 0,
         "msg": "success",
-        "data": {
-            "tts_status": tts_status
-        }
+        "data": {"tts_status": tts_status},
     }
 
 
-@router.get("/tts/get-audio-volume")
+@router.get("/tts/volume")
 async def get_audio_volume():
-    """获取当前音量大小"""
+    """获取当前音量"""
     result = await rac.get_audio_volume()
     audio_volume = result["audio_volume"]
     return {
         "code": 0,
         "msg": "success",
-        "data": {
-            "audio_volume": audio_volume
-        }
+        "data": {"audio_volume": audio_volume},
     }
 
 
-@router.post("/tts/set-audio-volume")
+@router.put("/tts/volume")
 async def set_audio_volume(audio_volume: int = Body(..., description="音量大小", ge=0, le=70, embed=True)):
-    """设置音量大小"""
+    """设置音量"""
     result = await rac.set_audio_volume(audio_volume)
-    return {
-        "code": 0,
-        "msg": "success",
-        "data": None
-    }
+    return {"code": 0, "msg": "success", "data": None}
 
 # ============================= Agent Control ========================================
 
 
-@router.post("/agent-control/set-agent-properties")
+@router.post("/agent-control/agent-properties")
 async def set_agent_properties(mode: Literal["only_voice", "voice_face", "normal"] = Body(..., description="交互运行模式", embed=True)):
     """设置机器人交互运行模式"""
     result = await rac.set_agent_properties(mode)
@@ -92,7 +84,7 @@ async def set_agent_properties(mode: Literal["only_voice", "voice_face", "normal
     }
 
 
-@router.get("/agent-control/get-agent-properties")
+@router.get("/agent-control/agent-properties")
 async def get_agent_properties():
     """查询机器人交互运行模式"""
     result = await rac.get_agent_properties()
@@ -104,41 +96,75 @@ async def get_agent_properties():
         }
     }
 
-# ============================== Face ========================================
+# ============================== Face Recognition ========================================
+
+# GET    /api/face-recognition           → 进程状态
+# POST   /api/face-recognition           → 启动
+# DELETE /api/face-recognition           → 停止
+# GET    /api/face-recognition/cloud-db  → 云端人脸库信息
 
 
-@router.get("/face/cloud-face-db-info")
+@router.get("/face-recognition/cloud-db")
 async def get_cloud_face_db_info():
     """获取云端人脸数据库信息"""
     result = await rac.get_cloud_face_db_info()
     return result
 
 
-@router.post("/face/start-face-recognition")
+@router.post("/face-recognition")
 async def start_face_recognition():
     """启动人脸识别 Python 程序"""
     result = await rac.start_face_recognition()
     return result
 
 
-@router.post("/face/stop-face-recognition")
+@router.delete("/face-recognition")
 async def stop_face_recognition():
     """停止人脸识别 Python 程序"""
     result = await rac.stop_face_recognition()
     return result
 
 
-@router.get("/face/face-recognition-status")
+@router.get("/face-recognition")
 async def get_face_recognition_status():
     """获取人脸识别进程状态"""
     result = await rac.get_face_recognition_status()
     return result
 
-# ============================== Robot Call Back ========================================
+
+# ============================== ASR ========================================
+
+# GET    /api/asr  → 进程状态
+# POST   /api/asr  → 启动
+# DELETE /api/asr  → 停止
 
 
-@router.post("/robot-call-back/face/recognition")
-async def face_recognition_callback(data: dict = Body(..., embed=False)):
+@router.post("/asr")
+async def start_asr():
+    """启动机器人端 ASR 程序（get_voice.py）"""
+    result = await rac.start_asr()
+    return result
+
+
+@router.delete("/asr")
+async def stop_asr():
+    """停止机器人端 ASR 程序"""
+    result = await rac.stop_asr()
+    return result
+
+
+@router.get("/asr")
+async def get_asr_status():
+    """获取机器人端 ASR 进程状态"""
+    result = await rac.get_asr_status()
+    return result
+
+
+# ============================== Webhooks（机器人回调）========================================
+
+
+@router.post("/webhooks/face-recognition")
+async def webhooks_face_recognition(data: dict = Body(..., embed=False)):
     """接收机器人端 FaceID 识别结果回调（由机器人端主动调用）"""
     timestamp = data["timestamp"]
     face_id = data["face_id"]
@@ -162,8 +188,8 @@ async def face_recognition_callback(data: dict = Body(..., embed=False)):
     }
 
 
-@router.post("/robot-call-back/asr/audio-file")
-async def asr_audio_file_callback(file: UploadFile = File(..., description="音频文件（二进制）")):
+@router.post("/webhooks/asr/audio")
+async def webhooks_asr_audio(file: UploadFile = File(..., description="音频文件（二进制）")):
     """机器人上传音频 → 存 tempfile → 语音转文字 → 结果发给中控 → 返回识别文本 -> 删除临时文件"""
     suffix = os.path.splitext(file.filename or "")[1] or ".bin"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
