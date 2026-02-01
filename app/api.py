@@ -201,6 +201,11 @@ async def webhooks_asr_audio(file: UploadFile = File(..., description="音频文
         text = recognize_audio(path)
 
         # 这里把识别到的文本发送到中控
+        print(f"""
+        收到 ASR 音频文件:
+        size: {len(content)} bytes
+        text: {text}
+        """)
         pass
 
         return {
