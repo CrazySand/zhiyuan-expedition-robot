@@ -4,7 +4,31 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Body, File, Query, UploadFile
 from app.robot_api_client import RobotAPIClient
-from app.asr import recognize_audio
+
+# =============================== ASR Tool ==========================================
+
+import shutil
+
+if not shutil.which("ffmpeg"):
+    raise Exception("未检测到 ffmpeg")
+
+from funasr import AutoModel
+from app.config import FUN_ASR_MODEL
+
+
+asr_model = AutoModel(
+    model=FUN_ASR_MODEL,
+    disable_update=True,
+    disable_pbar=True,
+)
+
+
+def recognize_audio(audio_path: str) -> str:
+    result = asr_model.generate(input=audio_path)
+    return result[0].get("text", "") if result else ""
+
+# =========================================================================
+
 
 rac = RobotAPIClient(
     httpx.AsyncClient(timeout=60), server_ip="127.0.0.1")
