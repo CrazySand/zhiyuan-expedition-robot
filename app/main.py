@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.handlers import http_exception_handler, global_exception_handler, validation_exception_handler
 from app.api import router
+from app.api_common import router as common_router
 from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT
 
 # =======================================================================
@@ -27,6 +28,7 @@ app = FastAPI()
 
 # 包含 API 路由
 app.include_router(router)
+app.include_router(common_router)
 
 # 配置 CORS 中间件
 app.add_middleware(
