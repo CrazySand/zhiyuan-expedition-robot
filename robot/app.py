@@ -7,7 +7,6 @@ import os
 import asyncio
 from typing import Optional
 
-import httpx
 import aiofiles
 
 from fastapi import FastAPI, Request, HTTPException, Header, Query, Body
@@ -90,7 +89,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 # ================================ 通用进程管理器 =======================================
 
-# 人脸识别：完整环境（ROS + conda）后执行 get_face_id.py
 FACE_RECOGNITION_COMMAND = """
 source /opt/ros/humble/setup.bash && \
 source /agibot/data/home/agi/Desktop/agibot_a2_aimdk-dev1.3/prebuilt/ros2_plugin_proto_aarch64/share/ros2_plugin_proto/local_setup.bash && \
@@ -101,8 +99,15 @@ export FASTRTPS_DEFAULT_PROFILES_FILE=/agibot/software/v0/entry/bin/cfg/ros_dds_
 python /agibot/data/home/agi/Desktop/robot/get_face_id.py
 """
 
-# ASR：仅执行 get_voice.py
-ASR_COMMAND = "python /agibot/data/home/agi/Desktop/robot/get_voice.py"
+ASR_COMMAND = """
+source /opt/ros/humble/setup.bash && \
+source /agibot/data/home/agi/Desktop/agibot_a2_aimdk-dev1.3/prebuilt/ros2_plugin_proto_aarch64/share/ros2_plugin_proto/local_setup.bash && \
+source /agibot/data/home/agi/Desktop/mydev/bin/activate && \
+export ROS_DOMAIN_ID=232 && \
+export ROS_LOCALHOST_ONLY=0 && \
+export FASTRTPS_DEFAULT_PROFILES_FILE=/agibot/software/v0/entry/bin/cfg/ros_dds_configuration.xml && \
+python /agibot/data/home/agi/Desktop/robot/get_voice.py
+"""
 
 
 class ProcessManager:

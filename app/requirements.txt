@@ -1,4 +1,4 @@
-# Python Version 3.12
+# Python Version 3.10
 # ffmpeg
 funasr
 torch

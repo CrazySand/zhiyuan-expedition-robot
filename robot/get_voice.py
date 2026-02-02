@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+import os
+import io
+import datetime
+import requests
 
 import rclpy
 from rclpy.node import Node
@@ -6,9 +9,6 @@ from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from ros2_plugin_proto.msg import RosMsgWrapper
 from aimdk.protocol_pb2 import ProcessedAudioOutput, AudioVADState
 
-import datetime
-import os
-import requests
 
 PC_CALLBACK_URL = "http://127.0.0.1:8001/api/webhooks/asr/audio"
 X_API_KEY = "NZGNJZMSDZJD"
@@ -16,8 +16,10 @@ X_API_KEY = "NZGNJZMSDZJD"
 
 def callback_pc_api(audio_data: bytes):
     """处理 FaceID 结果"""
-    response = requests.post(PC_CALLBACK_URL, files={"file": (audio_data, "audio/pcm")}, headers={
-        "Content-Type": "multipart/form-data", "X-API-KEY": X_API_KEY})
+
+    files = {"file": ("audio.pcm", io.BytesIO(audio_data), "audio/pcm")}
+    response = requests.post(PC_CALLBACK_URL, files=files, headers={
+                             "X-API-KEY": X_API_KEY})
     print(response.json())
 
 
@@ -47,13 +49,13 @@ class AudioSubscriber(Node):
             qos_profile,
         )
 
-        self.get_logger().info("开始订阅降噪音频数据...")
+        # self.get_logger().info("开始订阅降噪音频数据...")
 
     def audio_callback(self, msg):
         try:
             # 检查序列化类型是否为 pb
             if msg.serialization_type != "pb":
-                self.get_logger().warn(f"不支持的序列化类型: {msg.serialization_type}")
+                # self.get_logger().warn(f"不支持的序列化类型: {msg.serialization_type}")
                 return
 
             # 将 data 字段从 list[bytes] 转换为 bytes
@@ -63,23 +65,22 @@ class AudioSubscriber(Node):
             processed_audio = ProcessedAudioOutput()
             processed_audio.ParseFromString(audio_data_bytes)
 
-            import json
-            from google.protobuf.json_format import MessageToDict
+            # import json
+            # from google.protobuf.json_format import MessageToDict
+            # print(
+            #     json.dumps(
+            #         MessageToDict(processed_audio,
+            #                       preserving_proto_field_name=True),
+            #         ensure_ascii=False,
+            #         indent=2,
+            #     )
+            # )
 
-            print(
-                json.dumps(
-                    MessageToDict(processed_audio,
-                                  preserving_proto_field_name=True),
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
-
-            self.get_logger().info(
-                f"收到音频数据: stream_id={processed_audio.stream_id}, "
-                f"vad_state={processed_audio.vad_state}, "
-                f"audio_size={len(processed_audio.audio_data)} bytes"
-            )
+            # self.get_logger().info(
+            #     f"收到音频数据: stream_id={processed_audio.stream_id}, "
+            #     f"vad_state={processed_audio.vad_state}, "
+            #     f"audio_size={len(processed_audio.audio_data)} bytes"
+            # )
 
             # 根据VAD状态处理音频
             self.handle_vad_state(processed_audio)
@@ -178,15 +179,15 @@ class AudioSubscriber(Node):
             filepath = os.path.join(stream_dir, filename)
 
             try:
-                # with open(filepath, "wb") as f:
-                #     f.write(audio_data)
+                with open(filepath, "wb") as f:
+                    f.write(audio_data)
                 # self.get_logger().info(
                 #     f"音频段已保存: {filepath} (大小: {len(audio_data)} bytes)"
                 # )
                 callback_pc_api(audio_data)
-                self.get_logger().info(
-                    f"音频段已发送: {filepath} (大小: {len(audio_data)} bytes)"
-                )
+                # self.get_logger().info(
+                #     f"音频段已发送: {filepath} (大小: {len(audio_data)} bytes)"
+                # )
 
                 # 记录音频文件的时长（假设16kHz, 16位, 单声道）
                 sample_rate = 16000
@@ -197,9 +198,9 @@ class AudioSubscriber(Node):
                     audio_data) // (bytes_per_sample * channels)
                 duration_seconds = total_samples / sample_rate
 
-                self.get_logger().info(
-                    f"音频时长: {duration_seconds:.2f} 秒 ({total_samples} 样本)"
-                )
+                # self.get_logger().info(
+                #     f"音频时长: {duration_seconds:.2f} 秒 ({total_samples} 样本)"
+                # )
 
             except Exception as e:
                 self.get_logger().error(f"保存音频文件失败: {e}")
