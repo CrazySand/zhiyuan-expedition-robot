@@ -31,7 +31,7 @@ def recognize_audio(audio_path: str) -> str:
 
 
 rac = RobotAPIClient(
-    httpx.AsyncClient(timeout=60), server_ip="127.0.0.1")
+    httpx.AsyncClient(timeout=60), orin_mapped_ip="127.0.0.1", x86_ip="192.168.1.115")
 
 router = APIRouter(prefix="/api")
 

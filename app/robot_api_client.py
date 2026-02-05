@@ -5,9 +5,10 @@ import httpx
 class RobotAPIClient:
     """调用机器人端 API 的客户端"""
 
-    def __init__(self, client: httpx.AsyncClient, server_ip: str = "127.0.0.1"):
+    def __init__(self, client: httpx.AsyncClient, orin_mapped_ip: str, x86_ip: str):
         self.client = client
-        self.server_ip = server_ip
+        self.orin_mapped_ip = orin_mapped_ip
+        self.x86_ip = x86_ip
 
     # ============================= TTS ========================================
 
@@ -45,7 +46,7 @@ class RobotAPIClient:
                 - error_message (str): 错误信息
                 - estimated_duration (int): 无效字段，无需关注，无法估算播放时长
         """
-        url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.TTSService/PlayTTS"
+        url = f"http://{self.orin_mapped_ip}:59301/rpc/aimdk.protocol.TTSService/PlayTTS"
         payload = {
             "text": text,
             "priority_level": priority_level,
@@ -67,7 +68,7 @@ class RobotAPIClient:
             dict: 包含以下字段的字典：
                 - state (str): 调用请求状态，无需关注具体值，HTTP 请求返回 200 即代表成功
         """
-        url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.TTSService/StopTTSTraceId"
+        url = f"http://{self.orin_mapped_ip}:59301/rpc/aimdk.protocol.TTSService/StopTTSTraceId"
         payload = {
             "trace_id": trace_id
         }
@@ -102,7 +103,7 @@ class RobotAPIClient:
                     - domain (str): 无效字段，无需关注
                     - error_message (str): 错误信息
         """
-        url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.TTSService/GetAudioStatus"
+        url = f"http://{self.orin_mapped_ip}:59301/rpc/aimdk.protocol.TTSService/GetAudioStatus"
         payload = {
             "trace_id": trace_id
         }
@@ -122,7 +123,7 @@ class RobotAPIClient:
                     - "SPEAKRE_BUILT_IN": 内置扬声器
                     - "SPERKER_BULETOOTH": 蓝牙扬声器
         """
-        url = f"http://{self.server_ip}:56666/rpc/aimdk.protocol.HalAudioService/GetAudioVolume"
+        url = f"http://{self.orin_mapped_ip}:56666/rpc/aimdk.protocol.HalAudioService/GetAudioVolume"
         payload = {}
         response = await self.client.post(url, json=payload)
         return response.json()
@@ -151,7 +152,7 @@ class RobotAPIClient:
                 - pkg_name (str): 无效字段，无需关注
                 - is_success (bool): 无效字段，无需关注
         """
-        url = f"http://{self.server_ip}:56666/rpc/aimdk.protocol.HalAudioService/SetAudioVolume"
+        url = f"http://{self.orin_mapped_ip}:56666/rpc/aimdk.protocol.HalAudioService/SetAudioVolume"
         payload = {
             "audio_volume": audio_volume,
             "is_mute": is_mute,
@@ -180,7 +181,7 @@ class RobotAPIClient:
             dict: 包含以下字段的字典：
                 - state (str): 调用请求状态，返回 "CommonState_UNKNOWN" 是正常现象，无需关注具体值，HTTP 请求返回 200 即代表成功
         """
-        url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.AgentControlService/SetAgentPropertiesRequest"
+        url = f"http://{self.orin_mapped_ip}:59301/rpc/aimdk.protocol.AgentControlService/SetAgentPropertiesRequest"
         payload = {
             "contents": {
                 "properties": {
@@ -193,7 +194,7 @@ class RobotAPIClient:
 
     async def get_agent_properties(self) -> dict:
         """查询交互运行模式"""
-        url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.AgentControlService/GetAgentPropertiesRequest"
+        url = f"http://{self.orin_mapped_ip}:59301/rpc/aimdk.protocol.AgentControlService/GetAgentPropertiesRequest"
         payload = {
             "property_ids": [2]
         }
@@ -202,7 +203,7 @@ class RobotAPIClient:
 
     async def agent_mode_reboot(self) -> dict:
         """重启 agent 模块（机器人端 59888）"""
-        url = f"http://{self.server_ip}:59888/api/agent-mode-reboot"
+        url = f"http://{self.orin_mapped_ip}:59888/api/agent-mode-reboot"
         response = await self.client.post(url)
         return response.json()
 
@@ -223,7 +224,7 @@ class RobotAPIClient:
         Returns:
             dict: 包含 header、state 等字段；state 为 "CommonState_SUCCESS" 表示请求成功，实际切换完成需轮询 get_mc_action
         """
-        url = f"http://{self.server_ip}:56322/rpc/aimdk.protocol.McActionService/SetAction"
+        url = f"http://{self.x86_ip}:56322/rpc/aimdk.protocol.McActionService/SetAction"
         payload = {
             "header": {
                 "timestamp": {
@@ -248,7 +249,7 @@ class RobotAPIClient:
         Returns:
             dict: 包含 info 等字段；info.current_action 为当前运行的 Action（如 McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO）
         """
-        url = f"http://{self.server_ip}:56322/rpc/aimdk.protocol.McActionService/GetAction"
+        url = f"http://{self.x86_ip}:56322/rpc/aimdk.protocol.McActionService/GetAction"
         response = await self.client.post(url)
         return response.json()
 
@@ -256,25 +257,25 @@ class RobotAPIClient:
 
     async def get_cloud_face_db_info(self) -> dict:
         """获取云端人脸数据库信息"""
-        url = f"http://{self.server_ip}:59888/api/face-recognition/cloud-db"
+        url = f"http://{self.orin_mapped_ip}:59888/api/face-recognition/cloud-db"
         response = await self.client.get(url)
         return response.json()
 
     async def start_face_recognition(self) -> dict:
         """启动人脸识别 Python 程序"""
-        url = f"http://{self.server_ip}:59888/api/face-recognition"
+        url = f"http://{self.orin_mapped_ip}:59888/api/face-recognition"
         response = await self.client.post(url)
         return response.json()
 
     async def stop_face_recognition(self) -> dict:
         """停止人脸识别 Python 程序"""
-        url = f"http://{self.server_ip}:59888/api/face-recognition"
+        url = f"http://{self.orin_mapped_ip}:59888/api/face-recognition"
         response = await self.client.delete(url)
         return response.json()
 
     async def get_face_recognition_status(self) -> dict:
         """获取人脸识别进程状态"""
-        url = f"http://{self.server_ip}:59888/api/face-recognition"
+        url = f"http://{self.orin_mapped_ip}:59888/api/face-recognition"
         response = await self.client.get(url)
         return response.json()
 
@@ -282,19 +283,19 @@ class RobotAPIClient:
 
     async def start_asr(self) -> dict:
         """启动 ASR 程序（get_voice.py）"""
-        url = f"http://{self.server_ip}:59888/api/asr"
+        url = f"http://{self.orin_mapped_ip}:59888/api/asr"
         response = await self.client.post(url)
         return response.json()
 
     async def stop_asr(self) -> dict:
         """停止 ASR 程序"""
-        url = f"http://{self.server_ip}:59888/api/asr"
+        url = f"http://{self.orin_mapped_ip}:59888/api/asr"
         response = await self.client.delete(url)
         return response.json()
 
     async def get_asr_status(self) -> dict:
         """获取 ASR 进程状态"""
-        url = f"http://{self.server_ip}:59888/api/asr"
+        url = f"http://{self.orin_mapped_ip}:59888/api/asr"
         response = await self.client.get(url)
         return response.json()
 
@@ -311,7 +312,7 @@ class RobotAPIClient:
                     - map_name (str): 地图名称
                     - map_index (int): 地图索引
         """
-        url = f"http://{self.server_ip}:50807/rpc/aimdk.protocol.MappingService/GetStoredMapNames"
+        url = f"http://{self.orin_mapped_ip}:50807/rpc/aimdk.protocol.MappingService/GetStoredMapNames"
         payload = {
             "command": "MappingCommand_GET_STORED_MAP_NAME"
         }
@@ -338,7 +339,7 @@ class RobotAPIClient:
                 - rotate_angle (float): 旋转角度，供客户端展示用，可忽略
                 - map_url (str): 无效字段，可忽略
         """
-        url = f"http://{self.server_ip}:50807/rpc/aimdk.protocol.MappingService/Get2DWholeMap"
+        url = f"http://{self.orin_mapped_ip}:50807/rpc/aimdk.protocol.MappingService/Get2DWholeMap"
         payload = {
             "command": command,
             "map_id": map_id
@@ -365,7 +366,7 @@ class RobotAPIClient:
                 - paths (list): 路线，一般不使用，无需关注
                 - regions (list): 区域，一般不使用，无需关注
         """
-        url = f"http://{self.server_ip}:50807/rpc/aimdk.protocol.LocalizationService/GetTopoMsgs"
+        url = f"http://{self.orin_mapped_ip}:50807/rpc/aimdk.protocol.LocalizationService/GetTopoMsgs"
         payload = {
             "command": command,
             "map_id": map_id
