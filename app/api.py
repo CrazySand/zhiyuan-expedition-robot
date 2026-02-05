@@ -51,7 +51,7 @@ async def play_tts(text: str = Body(..., min_length=1, max_length=200, descripti
     trace_id = result["trace_id"]
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": {"trace_id": trace_id},
     }
 
@@ -60,7 +60,7 @@ async def play_tts(text: str = Body(..., min_length=1, max_length=200, descripti
 async def stop_tts():
     """打断当前 TTS 播报"""
     result = await rac.stop_tts()
-    return {"code": 0, "msg": "success", "data": None}
+    return {"code": 0, "msg": "操作成功", "data": None}
 
 
 @router.get("/tts/status")
@@ -70,7 +70,7 @@ async def get_audio_status(trace_id: str = Query(..., description="播报 id", m
     tts_status = result["tts_status"]["tts_status"]
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": {"tts_status": tts_status},
     }
 
@@ -82,7 +82,7 @@ async def get_audio_volume():
     audio_volume = result["audio_volume"]
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": {"audio_volume": audio_volume},
     }
 
@@ -91,7 +91,7 @@ async def get_audio_volume():
 async def set_audio_volume(audio_volume: int = Body(..., description="音量大小", ge=0, le=70, embed=True)):
     """设置音量"""
     result = await rac.set_audio_volume(audio_volume)
-    return {"code": 0, "msg": "success", "data": None}
+    return {"code": 0, "msg": "操作成功", "data": None}
 
 # ============================= Agent Control ========================================
 
@@ -103,7 +103,7 @@ async def set_agent_properties(mode: Literal["only_voice", "voice_face", "normal
     result = await rac.agent_mode_reboot()
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": None
     }
 
@@ -114,7 +114,7 @@ async def get_agent_properties():
     result = await rac.get_agent_properties()
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": {
             "mode": result["contents"]["properties"]["2"]
         }
@@ -130,7 +130,7 @@ async def get_agent_properties():
 async def set_mc_action(ext_action: Literal["RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"] = Body(..., description="目标运控 Action", embed=True)):
     """切换运动控制状态机（异步，需轮询 GET 接口确认是否切换完成）"""
     result = await rac.set_mc_action(ext_action)
-    return {"code": 0, "msg": "success", "data": None}
+    return {"code": 0, "msg": "操作成功", "data": None}
 
 
 @router.get("/motion-control/mc-action")
@@ -139,7 +139,7 @@ async def get_mc_action():
     result = await rac.get_mc_action()
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": {
             "current_action": result["info"]["current_action"]
         },
@@ -221,7 +221,7 @@ async def get_stored_map_names():
     result = await rac.get_stored_map_names()
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": result["data"]["map_lists"],
     }
 
@@ -237,11 +237,82 @@ async def get_map_detail(map_id: str = Query(..., description="地图 id")):
             "point_id": point["point_id"],
             "point_name": point["name"],
         })
-    return {"code": 0, "msg": "success", "data": {
+    return {"code": 0, "msg": "操作成功", "data": {
         "map_id": whole_map_result["data"]["map_id"],
         "map_name": whole_map_result["data"]["map_name"],
         "points": points,
     }}
+
+# ============================== Nav ========================================
+
+# POST   /api/nav/planning-to-goal  → 下发到点规划导航任务（body: task_id, map_id, target_id, ...）
+# POST   /api/nav/cancel            → 取消导航任务（body: task_id）
+# GET    /api/nav/status            → 获取导航任务状态（query: task_id，0 表示最近一次任务）
+
+
+@router.post("/nav/planning-to-goal")
+async def nav_planning_to_goal(
+    task_id: str | None = Body(None, description="任务 id，None 表示自动生成"),
+    map_id: str = Body(..., description="当前地图 id"),
+    target_id: str = Body(..., description="导航点 id（拓扑 point_id）"),
+):
+    """下发给定目标点 ID 的规划导航任务"""
+    result = await rac.planning_navi_to_goal(
+        task_id=task_id or 0,
+        map_id=map_id,
+        target_id=target_id,
+    )
+    if result["state"] != "CommonState_SUCCESS":
+        return {
+            "code": 400,
+            "msg": "地图ID或目标点ID不正确",
+            "data": None
+        }
+    return {
+        "code": 0,
+        "msg": "操作成功",
+        "data": {
+            "task_id": result["task_id"]
+        },
+    }
+
+
+@router.post("/nav/cancel")
+async def nav_cancel(task_id: str = Body(..., description="要取消的任务 id", embed=True)):
+    """取消导航任务（仅当 task_id 匹配时响应）"""
+    result = await rac.cancel_navi_task(task_id)
+    if result["state"] != "CommonState_SUCCESS":
+        return {
+            "code": 400,
+            "msg": "任务ID不正确",
+            "data": None
+        }
+    return {
+        "code": 0,
+        "msg": "操作成功",
+        "data": None
+    }
+
+
+@router.get("/nav/status")
+async def nav_status(task_id: str | None = Query(None, description="任务 id，None 表示最近一次任务")):
+    """获取导航任务状态"""
+    result = await rac.get_navi_task_status(task_id or 0)
+    if result["state"] != "CommonState_SUCCESS":
+        return {
+            "code": 400,
+            "msg": "任务ID不正确",
+            "data": None
+        }
+    return {
+        "code": 0,
+        "msg": "操作成功",
+        "data": {
+            "task_id": result["task_id"],
+            "state": result["state"]
+        },
+    }
+
 
 # ============================== Webhooks（机器人回调）========================================
 
@@ -264,7 +335,7 @@ async def webhooks_face_recognition(data: dict = Body(..., embed=False)):
 
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": {
             "face_id": face_id,
         }
@@ -293,7 +364,7 @@ async def webhooks_asr_audio(file: UploadFile = File(..., description="音频文
 
         return {
             "code": 0,
-            "msg": "success",
+            "msg": "操作成功",
             "data": {
                 "text": text,
             },

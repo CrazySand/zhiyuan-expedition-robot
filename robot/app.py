@@ -112,8 +112,8 @@ python /agibot/data/home/agi/Desktop/robot/get_voice.py
 
 class ProcessManager:
     """
-    通用子进程管理器，用于启动/停止通过 bash 执行的命令（如人脸识别、ASR）。
-    start(command) 时传入要执行的命令字符串，用 bash -c 执行。
+    通用子进程管理器，用于启动/停止通过 bash 执行的命令（如人脸识别、ASR）
+    start(command) 时传入要执行的命令字符串，用 bash -c 执行
     """
 
     def __init__(self):
@@ -123,7 +123,7 @@ class ProcessManager:
 
     async def start(self, command: str) -> dict:
         """
-        启动子进程，执行 command（通过 bash -c）。
+        启动子进程，执行 command（通过 bash -c）
 
         Args:
             command: 要执行的完整命令字符串（如 FACE_RECOGNITION_COMMAND 或 ASR_COMMAND）
@@ -156,7 +156,7 @@ class ProcessManager:
                 raise HTTPException(status_code=500, detail=f"启动失败: {str(e)}")
 
     async def stop(self) -> dict:
-        """停止子进程（含进程组）。"""
+        """停止子进程（含进程组）"""
         async with self._lock:
             if not self.is_running:
                 raise HTTPException(status_code=400, detail="进程未运行")
@@ -200,7 +200,7 @@ class ProcessManager:
                 raise HTTPException(status_code=500, detail=f"停止失败: {str(e)}")
 
     async def get_status(self) -> dict:
-        """返回当前进程状态：is_running, status, 可选 pid/return_code。"""
+        """返回当前进程状态：is_running, status, 可选 pid/return_code"""
         async with self._lock:
             if self.is_running and self.process:
                 return_code = self.process.returncode
@@ -212,7 +212,7 @@ class ProcessManager:
             return {"is_running": False, "status": "stopped"}
 
     async def _monitor_process(self):
-        """后台监控：进程意外退出时更新状态。"""
+        """后台监控：进程意外退出时更新状态"""
         if self.process:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self.process.wait)
@@ -231,8 +231,8 @@ asr_process_manager = ProcessManager()
 
 def run_command_live_output(command):
     """
-    执行系统命令并实时打印输出，执行完成后函数才返回。
-    适合耗时较长的命令（如 apt update），可实时看到执行过程。
+    执行系统命令并实时打印输出，执行完成后函数才返回
+    适合耗时较长的命令（如 apt update），可实时看到执行过程
 
     Args:
         command (str): 要在 Ubuntu 系统上执行的系统命令字符串（如 "sudo apt update"）
@@ -270,7 +270,7 @@ async def agent_mode_reboot():
         "aima em stop-app agent && aima em start-app agent")
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": None
     }
 
@@ -289,7 +289,7 @@ async def get_cloud_face_db_info():
         data = await f.read()
     return {
         "code": 0,
-        "msg": "success",
+        "msg": "操作成功",
         "data": json.loads(data)
     }
 
@@ -298,21 +298,21 @@ async def get_cloud_face_db_info():
 async def start_face_recognition():
     """启动人脸识别 Python 程序"""
     result = await face_recognition_process_manager.start(FACE_RECOGNITION_COMMAND)
-    return {"code": 0, "msg": "success", "data": result}
+    return {"code": 0, "msg": "操作成功", "data": result}
 
 
 @app.delete("/api/face-recognition")
 async def stop_face_recognition():
     """停止人脸识别 Python 程序"""
     result = await face_recognition_process_manager.stop()
-    return {"code": 0, "msg": "success", "data": result}
+    return {"code": 0, "msg": "操作成功", "data": result}
 
 
 @app.get("/api/face-recognition")
 async def get_face_recognition_status():
     """获取人脸识别进程状态"""
     status = await face_recognition_process_manager.get_status()
-    return {"code": 0, "msg": "success", "data": status}
+    return {"code": 0, "msg": "操作成功", "data": status}
 
 
 # GET    /api/asr  → 进程状态
@@ -324,21 +324,21 @@ async def get_face_recognition_status():
 async def start_asr():
     """启动 ASR 程序（get_voice.py）"""
     result = await asr_process_manager.start(ASR_COMMAND)
-    return {"code": 0, "msg": "success", "data": result}
+    return {"code": 0, "msg": "操作成功", "data": result}
 
 
 @app.delete("/api/asr")
 async def stop_asr():
     """停止 ASR 程序"""
     result = await asr_process_manager.stop()
-    return {"code": 0, "msg": "success", "data": result}
+    return {"code": 0, "msg": "操作成功", "data": result}
 
 
 @app.get("/api/asr")
 async def get_asr_status():
     """获取 ASR 进程状态"""
     status = await asr_process_manager.get_status()
-    return {"code": 0, "msg": "success", "data": status}
+    return {"code": 0, "msg": "操作成功", "data": status}
 
 
 # ================================  应用启动 =======================================

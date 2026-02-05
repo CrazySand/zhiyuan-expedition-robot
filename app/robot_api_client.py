@@ -349,11 +349,11 @@ class RobotAPIClient:
 
     async def get_topo_msgs(self, map_id: str, command: str = "TopoCommand_GET_TOPO_MSG") -> dict:
         """
-        获取地图拓扑数据（LocalizationService）。点位可用于动线讲解、导航等；paths、regions 一般不使用。
+        获取地图拓扑数据（LocalizationService）。点位可用于动线讲解、导航等；paths、regions 一般不使用
 
         Args:
-            map_id: 地图 id，可与 get_stored_map_names / get_2d_whole_map 使用同一 id。
-            command: 固定为 TopoCommand_GET_TOPO_MSG，一般无需修改。
+            map_id: 地图 id，可与 get_stored_map_names / get_2d_whole_map 使用同一 id
+            command: 固定为 TopoCommand_GET_TOPO_MSG，一般无需修改
 
         Returns:
             dict: 响应体，通常含 data 字段，data 内包含：
@@ -370,6 +370,77 @@ class RobotAPIClient:
         payload = {
             "command": command,
             "map_id": map_id
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    # ============================= NAV =======================================================
+
+    async def planning_navi_to_goal(
+        self,
+        task_id: str | int,
+        map_id: str,
+        target_id: str,
+        guide_line_id: int = 0,
+        ackerman_mode: bool = False,
+    ) -> dict:
+        """
+        下发给定目标点 ID 的规划导航任务
+
+        执行前需：机器人重定位成功；下发任务的地图 id 与重定位地图一致；MC 状态已切到 RL_LOCOMOTION_DEFAULT
+        到点精度范围最大约 0.4 米
+
+        Args:
+            task_id: 任务 id，传 0 时 PNC 会自动生成并在响应中返回，客户端需保存以便后续取消/暂停/恢复或查询状态
+            map_id: 当前地图 id，须与重定位使用的地图一致
+            target_id: 导航点 id（拓扑点位 point_id）
+            guide_line_id: 保留字段未使用，按示例填 0 即可
+            ackerman_mode: 保留字段未使用，按示例填 false 即可
+
+        Returns:
+            dict: 含 task_id（若入参为 0 则为 PNC 生成的任务 id）、state（CommonState_SUCCESS 表示成功送达并接收）
+        """
+        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/PlanningNaviToGoal"
+        payload = {
+            "task_id": task_id,
+            "map_id": map_id,
+            "target_id": target_id,
+            "guide_line_id": guide_line_id,
+            "ackerman_mode": ackerman_mode
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def cancel_navi_task(self, task_id: str) -> dict:
+        """取消导航任务"""
+        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionCancel"
+        payload = {
+            "task_id": task_id
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def get_navi_task_status(self, task_id: str | int) -> dict:
+        """
+        获取导航任务状态
+
+        若请求的 task_id 为 0，则返回**最近一次任务**的 task_id 及对应状态；其它 task_id 不匹配时返回 PncServiceState_FAILED
+
+        Args:
+            task_id: 任务 id；传 0 表示查询最近一次任务
+
+        Returns:
+            dict: 含 task_id（若入参为 0 则为最近一次任务的 id）、state（任务状态），枚举值：
+                - PncServiceState_UNDEFINED: 未知状态
+                - PncServiceState_IDLE: 任务空闲中
+                - PncServiceState_RUNNING: 任务运行中
+                - PncServiceState_PAUSED: 任务暂停中
+                - PncServiceState_SUCCESS: 任务完成
+                - PncServiceState_FAILED: 任务失败
+        """
+        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionGetStatus"
+        payload = {
+            "task_id": task_id
         }
         response = await self.client.post(url, json=payload)
         return response.json()

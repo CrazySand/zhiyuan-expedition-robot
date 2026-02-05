@@ -1,7 +1,7 @@
 """
-通用接口：将现有所有可编排的 API 收敛为单一入口 POST /api/common。
+通用接口：将现有所有可编排的 API 收敛为单一入口 POST /api/common
 请求体: { "action": "动作名", "params": { ... } }
-Webhooks（人脸回调、ASR 音频上传）仍保留独立路径，不在此通用入口内。
+Webhooks（人脸回调、ASR 音频上传）仍保留独立路径，不在此通用入口内
 """
 from typing import Any, Awaitable, Callable
 
@@ -42,7 +42,7 @@ COMMON_ACTIONS = [
 
 
 def _ok(data: Any = None) -> dict:
-    return {"code": 0, "msg": "success", "data": data}
+    return {"code": 0, "msg": "操作成功", "data": data}
 
 
 def _err(code: int, msg: str) -> dict:
@@ -179,7 +179,7 @@ async def list_common_actions():
 @router.post("/common")
 async def common_invoke(body: CommonRequestBody):
     """
-    通用接口：根据 action 执行对应逻辑，统一返回 { code, msg, data }。
+    通用接口：根据 action 执行对应逻辑，统一返回 { code, msg, data }
     """
     action = (body.action or "").strip()
     if not action:

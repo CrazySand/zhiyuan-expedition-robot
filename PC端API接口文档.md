@@ -40,7 +40,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": { ... }
 }
 ```
@@ -84,7 +84,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "trace_id": "hafhjkqwjwefkxxxx"
   }
@@ -106,7 +106,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": null
 }
 ```
@@ -128,7 +128,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "tts_status": "TTSStatusType_Playing"
   }
@@ -150,7 +150,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "audio_volume": 50
   }
@@ -182,7 +182,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": null
 }
 ```
@@ -222,7 +222,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": null
 }
 ```
@@ -240,7 +240,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "mode": "voice_face"
   }
@@ -262,7 +262,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": { ... }
 }
 ```
@@ -280,7 +280,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "pid": 12345,
     "status": "started"
@@ -299,7 +299,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "status": "stopped"
   }
@@ -317,7 +317,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "is_running": true,
     "status": "running",
@@ -343,7 +343,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "pid": 12346,
     "status": "started"
@@ -362,7 +362,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "status": "stopped"
   }
@@ -380,7 +380,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "is_running": true,
     "status": "running",
@@ -413,7 +413,7 @@ X-API-KEY: <密钥>
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "face_id": "A210041B50001917648293023663264"
   }
@@ -441,7 +441,7 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": {
     "text": "识别出的文字内容"
   }
@@ -465,7 +465,7 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": [
     {
       "action": "tts.play",
@@ -530,7 +530,7 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 ```json
 {
   "code": 0,
-  "msg": "success",
+  "msg": "操作成功",
   "data": { ... }
 }
 ```
