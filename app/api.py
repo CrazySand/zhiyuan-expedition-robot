@@ -120,6 +120,31 @@ async def get_agent_properties():
         }
     }
 
+# ============================= Motion Control ========================================
+
+# POST   /api/motion-control/mc-action  → 切换运控状态机（body: ext_action）
+# GET    /api/motion-control/mc-action  → 查询当前运控状态机
+
+
+@router.post("/motion-control/mc-action")
+async def set_mc_action(ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO"] = Body(..., description="目标运控 Action", embed=True)):
+    """切换运动控制状态机（异步，需轮询 GET 接口确认是否切换完成）"""
+    result = await rac.set_mc_action(ext_action)
+    return {"code": 0, "msg": "success", "data": None}
+
+
+@router.get("/motion-control/mc-action")
+async def get_mc_action():
+    """查询当前运动控制状态机"""
+    result = await rac.get_mc_action()
+    return {
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "current_action": result["info"]["current_action"]
+        },
+    }
+
 # ============================== Face Recognition ========================================
 
 # GET    /api/face-recognition           → 进程状态
@@ -183,6 +208,37 @@ async def get_asr_status():
     result = await rac.get_asr_status()
     return result
 
+
+# ============================== Map ========================================
+
+# GET    /api/map/stored-names  → 获取地图列表
+# GET    /api/map/detail        → 获取地图详情（query: map_id）
+
+
+@router.get("/map/stored-names")
+async def get_stored_map_names():
+    """获取地图列表"""
+    result = await rac.get_stored_map_names()
+    data = result.get("data", result)
+    return {"code": 0, "msg": "success", "data": data}
+
+
+@router.get("/map/detail")
+async def get_map_detail(map_id: str = Query(..., description="地图 id")):
+    """"""
+    whole_map_result = await rac.get_2d_whole_map(map_id)
+    topo_result = await rac.get_topo_msgs(map_id)
+    points = []
+    for point in topo_result["points"]:
+        points.append({
+            "point_id": point["point_id"],
+            "point_name": point["name"],
+        })
+    return {"code": 0, "msg": "success", "data": {
+        "map_id": whole_map_result["map_id"],
+        "map_name": whole_map_result["map_name"],
+        "points": points,
+    }}
 
 # ============================== Webhooks（机器人回调）========================================
 

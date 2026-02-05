@@ -46,14 +46,14 @@ class RobotAPIClient:
                 - estimated_duration (int): 无效字段，无需关注，无法估算播放时长
         """
         url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.TTSService/PlayTTS"
-        data = {
+        payload = {
             "text": text,
             "priority_level": priority_level,
             "domain": domain,
             "trace_id": trace_id,
             "is_interrupted": is_interrupted
         }
-        response = await self.client.post(url, json=data)
+        response = await self.client.post(url, json=payload)
         return response.json()
 
     async def stop_tts(self, trace_id: str = "hafhjkqwjwefk") -> dict:
@@ -68,10 +68,10 @@ class RobotAPIClient:
                 - state (str): 调用请求状态，无需关注具体值，HTTP 请求返回 200 即代表成功
         """
         url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.TTSService/StopTTSTraceId"
-        data = {
+        payload = {
             "trace_id": trace_id
         }
-        response = await self.client.post(url, json=data)
+        response = await self.client.post(url, json=payload)
         return response.json()
 
     async def get_audio_status(self, trace_id: str) -> dict:
@@ -103,10 +103,10 @@ class RobotAPIClient:
                     - error_message (str): 错误信息
         """
         url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.TTSService/GetAudioStatus"
-        data = {
+        payload = {
             "trace_id": trace_id
         }
-        response = await self.client.post(url, json=data)
+        response = await self.client.post(url, json=payload)
         return response.json()
 
     async def get_audio_volume(self) -> dict:
@@ -123,8 +123,8 @@ class RobotAPIClient:
                     - "SPERKER_BULETOOTH": 蓝牙扬声器
         """
         url = f"http://{self.server_ip}:56666/rpc/aimdk.protocol.HalAudioService/GetAudioVolume"
-        data = {}
-        response = await self.client.post(url, json=data)
+        payload = {}
+        response = await self.client.post(url, json=payload)
         return response.json()
 
     async def set_audio_volume(
@@ -152,12 +152,12 @@ class RobotAPIClient:
                 - is_success (bool): 无效字段，无需关注
         """
         url = f"http://{self.server_ip}:56666/rpc/aimdk.protocol.HalAudioService/SetAudioVolume"
-        data = {
+        payload = {
             "audio_volume": audio_volume,
             "is_mute": is_mute,
             "type": type
         }
-        response = await self.client.post(url, json=data)
+        response = await self.client.post(url, json=payload)
         return response.json()
 
     # ============================= Agent Control ========================================
@@ -181,81 +181,194 @@ class RobotAPIClient:
                 - state (str): 调用请求状态，返回 "CommonState_UNKNOWN" 是正常现象，无需关注具体值，HTTP 请求返回 200 即代表成功
         """
         url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.AgentControlService/SetAgentPropertiesRequest"
-        data = {
+        payload = {
             "contents": {
                 "properties": {
                     "2": mode
                 }
             }
         }
-        response = await self.client.post(url, json=data)
+        response = await self.client.post(url, json=payload)
         return response.json()
 
-    async def get_agent_properties(self) -> Literal["only_voice", "voice_face", "normal"]:
-        """
-        查询交互运行模式
-
-        Returns:
-            Literal["only_voice", "voice_face", "normal"]: 当前交互运行模式，枚举值：
-                - "only_voice": 仅输出降噪麦克音频 /agent/process_audio_output，后续链路全部断开
-                - "voice_face": 输出降噪麦克音频 /agent/process_audio_output 和人脸识别结果 /agent/vision/face_id，后续链路全部断开
-                - "normal": 常规运行模式，交互正常运行
-        """
+    async def get_agent_properties(self) -> dict:
+        """查询交互运行模式"""
         url = f"http://{self.server_ip}:59301/rpc/aimdk.protocol.AgentControlService/GetAgentPropertiesRequest"
-        data = {
+        payload = {
             "property_ids": [2]
         }
-        response = await self.client.post(url, json=data)
+        response = await self.client.post(url, json=payload)
         return response.json()
 
-    async def agent_mode_reboot(self):
+    async def agent_mode_reboot(self) -> dict:
         """重启 agent 模块（机器人端 59888）"""
         url = f"http://{self.server_ip}:59888/api/agent-mode-reboot"
-        response = await self.client.post(url, json={})
+        response = await self.client.post(url)
+        return response.json()
+
+    # ============================= Motion Control ========================================
+
+    async def set_mc_action(self, ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", ...], action: str = "McAction_USE_EXT_CMD") -> dict:
+        """
+        切换运动控制状态机（异步接口，调用完成不代表切换即完成，需配合 get_mc_action 查询是否切换成功）
+        导航模式需要用到 RL_LOCOMOTION_DEFAULT，切换该模式后不影响非二开功能
+
+        Args:
+            ext_action: 目标运控 Action，枚举值：
+                - "DEFAULT": 默认模式，运控启动后的默认 action
+                - "RL_LOCOMOTION_DEFAULT": 强化行走模式（拟人行走，走路时手臂会摆动）
+                - "PASSIVE_UPPER_BODY_JOINT_SERVO": 下肢被动上肢伺服模式（下肢不使能，手臂可接收外部关节伺服指令）
+            action: 固定填写为 McAction_USE_EXT_CMD，一般无需修改
+
+        Returns:
+            dict: 包含 header、state 等字段；state 为 "CommonState_SUCCESS" 表示请求成功，实际切换完成需轮询 get_mc_action
+        """
+        url = f"http://{self.server_ip}:56322/rpc/aimdk.protocol.McActionService/SetAction"
+        payload = {
+            "header": {
+                "timestamp": {
+                    "seconds": 1763614279,
+                    "nanos": 847810000,
+                    "ms_since_epoch": 1763614279847
+                },
+                "control_source": "ControlSource_SAFE"
+            },
+            "command": {
+                "action": action,
+                "ext_action": ext_action
+            }
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def get_mc_action(self) -> dict:
+        """
+        查询当前运动控制状态机
+
+        Returns:
+            dict: 包含 info 等字段；info.current_action 为当前运行的 Action（如 McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO）
+        """
+        url = f"http://{self.server_ip}:56322/rpc/aimdk.protocol.McActionService/GetAction"
+        response = await self.client.post(url)
         return response.json()
 
     # ============================= Face Recognition ========================================
 
-    async def get_cloud_face_db_info(self):
+    async def get_cloud_face_db_info(self) -> dict:
         """获取云端人脸数据库信息"""
         url = f"http://{self.server_ip}:59888/api/face-recognition/cloud-db"
         response = await self.client.get(url)
         return response.json()
 
-    async def start_face_recognition(self):
+    async def start_face_recognition(self) -> dict:
         """启动人脸识别 Python 程序"""
         url = f"http://{self.server_ip}:59888/api/face-recognition"
         response = await self.client.post(url)
         return response.json()
 
-    async def stop_face_recognition(self):
+    async def stop_face_recognition(self) -> dict:
         """停止人脸识别 Python 程序"""
         url = f"http://{self.server_ip}:59888/api/face-recognition"
         response = await self.client.delete(url)
         return response.json()
 
-    async def get_face_recognition_status(self):
+    async def get_face_recognition_status(self) -> dict:
         """获取人脸识别进程状态"""
         url = f"http://{self.server_ip}:59888/api/face-recognition"
         response = await self.client.get(url)
         return response.json()
 
-    # ============================= ASR ========================================
+    # ============================= ASR =======================================================
 
-    async def start_asr(self):
+    async def start_asr(self) -> dict:
         """启动 ASR 程序（get_voice.py）"""
         url = f"http://{self.server_ip}:59888/api/asr"
         response = await self.client.post(url)
         return response.json()
 
-    async def stop_asr(self):
+    async def stop_asr(self) -> dict:
         """停止 ASR 程序"""
         url = f"http://{self.server_ip}:59888/api/asr"
         response = await self.client.delete(url)
         return response.json()
 
-    async def get_asr_status(self):
+    async def get_asr_status(self) -> dict:
         """获取 ASR 进程状态"""
         url = f"http://{self.server_ip}:59888/api/asr"
         response = await self.client.get(url)
+        return response.json()
+
+    # ============================= MAP =======================================================
+
+    async def get_stored_map_names(self) -> dict:
+        """
+        获取地图列表
+
+        Returns:
+            dict: 响应体，通常含 data 字段，data 内包含：
+                - map_lists (list): 地图列表，每项包含：
+                    - map_id (str): 地图 id，供 get_2d_whole_map、get_topo_msgs 使用
+                    - map_name (str): 地图名称
+                    - map_index (int): 地图索引
+        """
+        url = f"http://{self.server_ip}:50807/rpc/aimdk.protocol.MappingService/GetStoredMapNames"
+        payload = {
+            "command": "MappingCommand_GET_STORED_MAP_NAME"
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def get_2d_whole_map(self, map_id: str, command: str = "MappingCommand_GET_2D_WHOLE_MAP") -> dict:
+        """
+        获取 2D 地图数据（MappingService）根据地图 id 返回整张 2D 地图的元数据及栅格数据（PNG）
+
+        Args:
+            map_id: 需要获取信息的地图 id，可从 get_stored_map_names 得到
+            command: 固定为 MappingCommand_GET_2D_WHOLE_MAP，一般无需修改
+
+        Returns:
+            dict: 响应体，通常含 data 字段，data 内包含：
+                - map_id (str): 地图 id
+                - map_name (str): 地图名称
+                - width (int): 地图宽度（像素）
+                - height (int): 地图高度（像素）
+                - resolution (int): 分辨率
+                - origin_x, origin_y (int): 建图时坐标原点，可视为地图原点
+                - map_data (str): 地图数据，PNG 格式
+                - rotate_angle (float): 旋转角度，供客户端展示用，可忽略
+                - map_url (str): 无效字段，可忽略
+        """
+        url = f"http://{self.server_ip}:50807/rpc/aimdk.protocol.MappingService/Get2DWholeMap"
+        payload = {
+            "command": command,
+            "map_id": map_id
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def get_topo_msgs(self, map_id: str, command: str = "TopoCommand_GET_TOPO_MSG") -> dict:
+        """
+        获取地图拓扑数据（LocalizationService）。点位可用于动线讲解、导航等；paths、regions 一般不使用。
+
+        Args:
+            map_id: 地图 id，可与 get_stored_map_names / get_2d_whole_map 使用同一 id。
+            command: 固定为 TopoCommand_GET_TOPO_MSG，一般无需修改。
+
+        Returns:
+            dict: 响应体，通常含 data 字段，data 内包含：
+                - points (list): 点位列表，每项包含：
+                    - point_id (int): 点位 id
+                    - name (str): 点位名称
+                    - point_type (str): 点位类型（如 NaviPointType_NAVI_POINT）
+                    - pixel_pose (dict): 像素坐标，含 position.u、position.v、angle
+                    - pose (dict): 世界坐标，含 position.x、position.y、position.z
+                - paths (list): 路线，一般不使用，无需关注
+                - regions (list): 区域，一般不使用，无需关注
+        """
+        url = f"http://{self.server_ip}:50807/rpc/aimdk.protocol.LocalizationService/GetTopoMsgs"
+        payload = {
+            "command": command,
+            "map_id": map_id
+        }
+        response = await self.client.post(url, json=payload)
         return response.json()
