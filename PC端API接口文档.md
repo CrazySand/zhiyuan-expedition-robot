@@ -309,9 +309,38 @@ X-API-KEY: <密钥>
 {
   "code": 0,
   "msg": "操作成功",
-  "data": { ... }
+  "data": [
+    {
+      "description": "",
+      "greeting": "random",
+      "name": "张三",
+      "nickname": "张三",
+      "priority": 1,
+      "timestamp": "1764078863000",
+      "uid": "AGI812541E1FB25869472CE"
+    },
+    {
+      "description": "",
+      "greeting": "random",
+      "name": "李四",
+      "nickname": "李四",
+      "priority": 2,
+      "timestamp": "1764078580000",
+      "uid": "AGI81254464E98DB18C2C94"
+    }
+  ]
 }
 ```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| uid | string | 人脸唯一标识，用于 FaceID 回调中的 face_id 匹配 |
+| name | string | 姓名 |
+| nickname | string | 昵称 |
+| description | string | 描述 |
+| greeting | string | 问候语类型（如 random） |
+| priority | int | 优先级 |
+| timestamp | string | 时间戳 |
 
 ---
 
@@ -320,6 +349,8 @@ X-API-KEY: <密钥>
 **POST** `/api/face-recognition`
 
 在机器人端启动人脸识别 Python 程序（如 get_face_id.py）。
+
+**前置条件**：当前交互模式须为 `voice_face` 或 `normal`，否则返回 `code: 400`，`msg: "当前交互模式不是 voice_face 或 normal"`
 
 **响应示例**
 
@@ -383,6 +414,8 @@ X-API-KEY: <密钥>
 **POST** `/api/asr`
 
 在机器人端启动 ASR 程序（get_voice.py），开始采集并上传音频到 PC 做识别。
+
+**前置条件**：当前交互模式须为 `only_voice` 或 `voice_face`，否则返回 `code: 400`，`msg: "当前交互模式不是 only_voice 或 voice_face"`。
 
 **响应示例**
 
