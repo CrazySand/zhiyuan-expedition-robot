@@ -124,8 +124,7 @@ class RobotAPIClient:
                     - "SPERKER_BULETOOTH": 蓝牙扬声器
         """
         url = f"http://{self.orin_mapped_ip}:56666/rpc/aimdk.protocol.HalAudioService/GetAudioVolume"
-        payload = {}
-        response = await self.client.post(url, json=payload)
+        response = await self.client.post(url, json={})
         return response.json()
 
     async def set_audio_volume(
@@ -209,7 +208,7 @@ class RobotAPIClient:
 
     # ============================= Motion Control ========================================
 
-    async def set_mc_action(self, ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", ...], action: str = "McAction_USE_EXT_CMD") -> dict:
+    async def set_mc_action(self, ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"], action: str = "McAction_USE_EXT_CMD") -> dict:
         """
         切换运动控制状态机（异步接口，调用完成不代表切换即完成，需配合 get_mc_action 查询是否切换成功）
         导航模式需要用到 RL_LOCOMOTION_DEFAULT，切换该模式后不影响非二开功能
@@ -219,6 +218,7 @@ class RobotAPIClient:
                 - "DEFAULT": 默认模式，运控启动后的默认 action
                 - "RL_LOCOMOTION_DEFAULT": 强化行走模式（拟人行走，走路时手臂会摆动）
                 - "PASSIVE_UPPER_BODY_JOINT_SERVO": 下肢被动上肢伺服模式（下肢不使能，手臂可接收外部关节伺服指令）
+                - "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"：强化行走上肢伺服模式（下肢拟人行走或站立，上肢接受外部关节伺服指令，行走或站立时做动作（使用全身控制的强化模型，更具有稳定性）
             action: 固定填写为 McAction_USE_EXT_CMD，一般无需修改
 
         Returns:
@@ -226,14 +226,14 @@ class RobotAPIClient:
         """
         url = f"http://{self.x86_ip}:56322/rpc/aimdk.protocol.McActionService/SetAction"
         payload = {
-            "header": {
-                "timestamp": {
-                    "seconds": 1763614279,
-                    "nanos": 847810000,
-                    "ms_since_epoch": 1763614279847
-                },
-                "control_source": "ControlSource_SAFE"
-            },
+            # "header": {
+            #     "timestamp": {
+            #         "seconds": 1763614279,
+            #         "nanos": 847810000,
+            #         "ms_since_epoch": 1763614279847
+            #     },
+            #     "control_source": "ControlSource_SAFE"
+            # },
             "command": {
                 "action": action,
                 "ext_action": ext_action
@@ -250,7 +250,7 @@ class RobotAPIClient:
             dict: 包含 info 等字段；info.current_action 为当前运行的 Action（如 McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO）
         """
         url = f"http://{self.x86_ip}:56322/rpc/aimdk.protocol.McActionService/GetAction"
-        response = await self.client.post(url)
+        response = await self.client.post(url, json={})
         return response.json()
 
     # ============================= Face Recognition ========================================
@@ -301,7 +301,7 @@ class RobotAPIClient:
 
     # ============================= MAP =======================================================
 
-    async def get_stored_map_names(self) -> dict:
+    async def get_stored_map_names(self, command: str = "MappingCommand_GET_STORED_MAP_NAME") -> dict:
         """
         获取地图列表
 
@@ -314,7 +314,7 @@ class RobotAPIClient:
         """
         url = f"http://{self.orin_mapped_ip}:50807/rpc/aimdk.protocol.MappingService/GetStoredMapNames"
         payload = {
-            "command": "MappingCommand_GET_STORED_MAP_NAME"
+            "command": command
         }
         response = await self.client.post(url, json=payload)
         return response.json()

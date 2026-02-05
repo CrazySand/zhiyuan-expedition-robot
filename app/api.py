@@ -127,7 +127,7 @@ async def get_agent_properties():
 
 
 @router.post("/motion-control/mc-action")
-async def set_mc_action(ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO"] = Body(..., description="目标运控 Action", embed=True)):
+async def set_mc_action(ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"] = Body(..., description="目标运控 Action", embed=True)):
     """切换运动控制状态机（异步，需轮询 GET 接口确认是否切换完成）"""
     result = await rac.set_mc_action(ext_action)
     return {"code": 0, "msg": "success", "data": None}
