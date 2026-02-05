@@ -201,7 +201,7 @@ class RobotAPIClient:
         return response.json()
 
     async def agent_mode_reboot(self) -> dict:
-        """重启 agent 模块（机器人端 59888）"""
+        """重启 agent 模块"""
         url = f"http://{self.orin_mapped_ip}:59888/api/agent-mode-reboot"
         response = await self.client.post(url)
         return response.json()
