@@ -1,5 +1,6 @@
 import tempfile
 import os
+import json
 from typing import Literal
 import httpx
 from fastapi import APIRouter, Body, File, Query, UploadFile
@@ -64,7 +65,7 @@ async def stop_tts():
 
 
 @router.get("/tts/status")
-async def get_audio_status(trace_id: str = Query(..., description="播报 id", min_length=1, max_length=100)):
+async def get_audio_status(trace_id: str = Query(..., description="播报ID", min_length=1, max_length=100)):
     """查询 TTS 播报状态"""
     result = await rac.get_audio_status(trace_id)
     tts_status = result["tts_status"]["tts_status"]
@@ -211,24 +212,37 @@ async def get_asr_status():
 
 # ============================== Map ========================================
 
-# GET    /api/map/stored-names  → 获取地图列表
+# GET    /api/map/list          → 获取地图列表
 # GET    /api/map/detail        → 获取地图详情（query: map_id）
 
 
-@router.get("/map/stored-names")
-async def get_stored_map_names():
+@router.get("/map/list")
+async def get_map_list():
     """获取地图列表"""
-    result = await rac.get_stored_map_names()
+    map_lists = (await rac.get_stored_map_names())["data"]["map_lists"]
+    current_working_map_id = (await rac.get_current_working_map())["data"]["map_id"]
+    current_working_map_name = next(
+        (map for map in map_lists if map["map_id"] == current_working_map_id), None)["map_name"]
     return {
         "code": 0,
         "msg": "操作成功",
-        "data": result["data"]["map_lists"],
+        "data": {
+            "current_working_map_id": current_working_map_id,
+            "current_working_map_name": current_working_map_name,
+            "map_lists": map_lists,
+        },
     }
 
 
 @router.get("/map/detail")
-async def get_map_detail(map_id: str = Query(..., description="地图 id")):
+async def get_map_detail(map_id: str = Query(..., description="地图ID")):
     """获取地图详情"""
+    if map_id not in [map["map_id"] for map in (await rac.get_stored_map_names())["data"]["map_lists"]]:
+        return {
+            "code": 400,
+            "msg": "地图ID不存在",
+            "data": None
+        }
     whole_map_result = await rac.get_2d_whole_map(map_id)
     topo_result = await rac.get_topo_msgs(map_id)
     points = []
@@ -237,37 +251,41 @@ async def get_map_detail(map_id: str = Query(..., description="地图 id")):
             "point_id": point["point_id"],
             "point_name": point["name"],
         })
-    return {"code": 0, "msg": "操作成功", "data": {
-        "map_id": whole_map_result["data"]["map_id"],
-        "map_name": whole_map_result["data"]["map_name"],
-        "points": points,
-    }}
+    return {
+        "code": 0,
+        "msg": "操作成功",
+        "data": {
+            "map_id": whole_map_result["data"]["map_id"],
+            "map_name": whole_map_result["data"]["map_name"],
+            "points": points,
+        }}
+
 
 # ============================== Nav ========================================
 
 # POST   /api/nav/planning-to-goal  → 下发到点规划导航任务（body: task_id, map_id, target_id, ...）
-# POST   /api/nav/cancel            → 取消导航任务（body: task_id）
+# POST   /api/nav/task-control      → 取消/暂停/恢复导航任务（body: action=cancel|pause|resume, task_id）
 # GET    /api/nav/status            → 获取导航任务状态（query: task_id，0 表示最近一次任务）
 
 
 @router.post("/nav/planning-to-goal")
 async def nav_planning_to_goal(
-    task_id: str | None = Body(None, description="任务 id，None 表示自动生成"),
-    map_id: str = Body(..., description="当前地图 id"),
-    target_id: str = Body(..., description="导航点 id（拓扑 point_id）"),
+    task_id: str | None = Body(None, description="任务ID，None 表示自动生成"),
+    current_working_map_id: str = Body(..., description="当前工作地图ID"),
+    point_id: int = Body(..., description="导航点ID"),
 ):
     """下发给定目标点 ID 的规划导航任务"""
-    result = await rac.planning_navi_to_goal(
-        task_id=task_id or 0,
-        map_id=map_id,
-        target_id=target_id,
-    )
-    if result["state"] != "CommonState_SUCCESS":
+    if current_working_map_id != (await rac.get_current_working_map())["data"]["map_id"]:
         return {
             "code": 400,
-            "msg": "地图ID或目标点ID不正确",
+            "msg": "非当前工作地图",
             "data": None
         }
+    result = await rac.planning_navi_to_goal(
+        task_id=task_id or 0,
+        map_id=current_working_map_id,
+        target_id=point_id,
+    )
     return {
         "code": 0,
         "msg": "操作成功",
@@ -277,41 +295,51 @@ async def nav_planning_to_goal(
     }
 
 
-@router.post("/nav/cancel")
-async def nav_cancel(task_id: str = Body(..., description="要取消的任务 id", embed=True)):
-    """取消导航任务（仅当 task_id 匹配时响应）"""
-    result = await rac.cancel_navi_task(task_id)
-    if result["state"] != "CommonState_SUCCESS":
-        return {
-            "code": 400,
-            "msg": "任务ID不正确",
-            "data": None
-        }
-    return {
-        "code": 0,
-        "msg": "操作成功",
-        "data": None
-    }
+_NAV_TASK_FAIL_MSG = "任务不存在、已结束或 task_id 不匹配"
+
+_NAV_TASK_ACTIONS = {
+    "cancel": rac.cancel_navi_task,
+    "pause": rac.pause_navi_task,
+    "resume": rac.resume_navi_task,
+}
+
+
+@router.post("/nav/task-control")
+async def nav_task_control(
+    action: Literal["cancel", "pause",
+                    "resume"] = Body(..., description="cancel=取消, pause=暂停, resume=恢复"),
+    task_id: str = Body(..., description="任务ID", embed=True),
+):
+    """取消 / 暂停 / 恢复导航任务（仅当 task_id 匹配时才响应）"""
+    try:
+        fn = _NAV_TASK_ACTIONS[action]
+        result = await fn(task_id)
+        if result["state"] == "CommonState_SUCCESS":
+            return {"code": 0, "msg": "操作成功", "data": None}
+        return {"code": 400, "msg": _NAV_TASK_FAIL_MSG, "data": None}
+    except json.JSONDecodeError:
+        return {"code": 400, "msg": _NAV_TASK_FAIL_MSG, "data": None}
 
 
 @router.get("/nav/status")
-async def nav_status(task_id: str | None = Query(None, description="任务 id，None 表示最近一次任务")):
+async def nav_status(task_id: str | None = Query(None, description="任务ID，None 表示最近一次任务")):
     """获取导航任务状态"""
-    result = await rac.get_navi_task_status(task_id or 0)
-    if result["state"] != "CommonState_SUCCESS":
+    try:
+        result = await rac.get_navi_task_status(task_id or 0)
+        return {
+            "code": 0,
+            "msg": "操作成功",
+            "data": {
+                "task_id": result["task_id"],
+                "state": result["state"]
+            },
+        }
+    except json.JSONDecodeError:
         return {
             "code": 400,
-            "msg": "任务ID不正确",
+            "msg": "任务不存在或已结束",
             "data": None
         }
-    return {
-        "code": 0,
-        "msg": "操作成功",
-        "data": {
-            "task_id": result["task_id"],
-            "state": result["state"]
-        },
-    }
 
 
 # ============================== Webhooks（机器人回调）========================================

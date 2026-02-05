@@ -249,9 +249,55 @@ X-API-KEY: <密钥>
 
 ---
 
-## 4. 人脸识别
+## 4. Motion Control（运控）
 
-### 4.1 获取云端人脸库信息
+### 4.1 切换运控状态机
+
+**POST** `/api/motion-control/mc-action`
+
+切换运动控制状态机（异步，需轮询 GET 接口确认是否切换完成）。导航前需切到 `RL_LOCOMOTION_DEFAULT`。
+
+**请求体（JSON）**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| ext_action | string | 是 | 枚举：`RL_LOCOMOTION_DEFAULT` / `PASSIVE_UPPER_BODY_JOINT_SERVO` / `RL_LOCOMOTION_ARM_EXT_JOINT_SERVO` |
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": null
+}
+```
+
+---
+
+### 4.2 查询当前运控状态机
+
+**GET** `/api/motion-control/mc-action`
+
+无参数。
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "current_action": "McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"
+  }
+}
+```
+
+---
+
+## 5. 人脸识别
+
+### 5.1 获取云端人脸库信息
 
 **GET** `/api/face-recognition/cloud-db`
 
@@ -269,7 +315,7 @@ X-API-KEY: <密钥>
 
 ---
 
-### 4.2 启动人脸识别程序
+### 5.2 启动人脸识别程序
 
 **POST** `/api/face-recognition`
 
@@ -290,7 +336,7 @@ X-API-KEY: <密钥>
 
 ---
 
-### 4.3 停止人脸识别程序
+### 5.3 停止人脸识别程序
 
 **DELETE** `/api/face-recognition`
 
@@ -308,7 +354,7 @@ X-API-KEY: <密钥>
 
 ---
 
-### 4.4 获取人脸识别进程状态
+### 5.4 获取人脸识别进程状态
 
 **GET** `/api/face-recognition`
 
@@ -330,9 +376,9 @@ X-API-KEY: <密钥>
 
 ---
 
-## 5. ASR（语音识别）
+## 6. ASR（语音识别）
 
-### 5.1 启动 ASR 程序
+### 6.1 启动 ASR 程序
 
 **POST** `/api/asr`
 
@@ -353,7 +399,7 @@ X-API-KEY: <密钥>
 
 ---
 
-### 5.2 停止 ASR 程序
+### 6.2 停止 ASR 程序
 
 **DELETE** `/api/asr`
 
@@ -371,7 +417,7 @@ X-API-KEY: <密钥>
 
 ---
 
-### 5.3 获取 ASR 进程状态
+### 6.3 获取 ASR 进程状态
 
 **GET** `/api/asr`
 
@@ -391,12 +437,156 @@ X-API-KEY: <密钥>
 
 ---
 
-## 6. Webhooks（机器人回调）
+## 7. Map（地图）
+
+### 7.1 获取地图列表
+
+**GET** `/api/map/list`
+
+无参数。返回地图列表及当前工作地图信息。
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "current_working_map_id": "1764059676131",
+    "current_working_map_name": "园区",
+    "map_lists": [
+      {
+        "map_id": "1764059676131",
+        "map_name": "园区",
+        "map_index": 3
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7.2 获取地图详情
+
+**GET** `/api/map/detail`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| map_id | string | 是 | 地图 id（可从 map/list 的 map_lists 取） |
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "map_id": "1764059676131",
+    "map_name": "园区",
+    "points": [
+      {"point_id": 1, "point_name": "导航点1"}
+    ]
+  }
+}
+```
+
+若 map_id 不存在，返回 `code: 400`，`msg: "地图ID不存在"`。
+
+---
+
+## 8. Nav（导航）
+
+执行前需：MC 状态为 `RL_LOCOMOTION_DEFAULT`、已重定位、下发任务的地图 id 与重定位地图一致。
+
+### 8.1 下发到点规划导航任务
+
+**POST** `/api/nav/planning-to-goal`
+
+**请求体（JSON）**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| task_id | string \| null | 否 | 任务 id，不传或 null 表示自动生成，返回的 task_id 需保存以便后续控制/查询 |
+| current_working_map_id | string | 是 | 当前工作地图 id（须与重定位地图一致） |
+| point_id | int | 是 | 导航点 id（拓扑 point_id，可从 map/detail 的 points 取） |
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "task_id": "9820900024371944166"
+  }
+}
+```
+
+若 current_working_map_id 非当前工作地图，返回 `code: 400`，`msg: "非当前工作地图"`。到点精度约 0.4 米。
+
+---
+
+### 8.2 取消 / 暂停 / 恢复导航任务
+
+**POST** `/api/nav/task-control`
+
+**请求体（JSON）**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| action | string | 是 | 枚举：`cancel`（取消）/ `pause`（暂停）/ `resume`（恢复） |
+| task_id | string | 是 | 要操作的任务 id，需与下发时返回的 task_id 一致 |
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": null
+}
+```
+
+仅当 task_id 匹配时才响应；否则返回 `code: 400`，`msg: "任务不存在、已结束或 task_id 不匹配"`。
+
+---
+
+### 8.3 获取导航任务状态
+
+**GET** `/api/nav/status`
+
+**Query 参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| task_id | string \| null | 否 | 任务 id；不传或传 0 表示查询最近一次任务 |
+
+**响应示例**
+
+```json
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "task_id": "9820900024371944166",
+    "state": "PncServiceState_RUNNING"
+  }
+}
+```
+
+`state` 枚举：`PncServiceState_UNDEFINED`、`PncServiceState_IDLE`、`PncServiceState_RUNNING`、`PncServiceState_PAUSED`、`PncServiceState_SUCCESS`、`PncServiceState_FAILED`。
+
+---
+
+## 9. Webhooks（机器人回调）
 
 以下接口由**机器人端**主动调用，用于将人脸识别结果、ASR 音频上传到 PC。调用方需同样携带 `X-API-KEY`。  
 （机器人通过 SSH 隧道访问 PC 时，通常请求 `http://127.0.0.1:8001` 对应 PC 的 8000 端口。）
 
-### 6.1 人脸识别结果回调
+### 9.1 人脸识别结果回调
 
 **POST** `/api/webhooks/face-recognition`
 
@@ -422,7 +612,7 @@ X-API-KEY: <密钥>
 
 ---
 
-### 6.2 ASR 音频上传
+### 9.2 ASR 音频上传
 
 **POST** `/api/webhooks/asr/audio`
 
@@ -450,11 +640,11 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 
 ---
 
-## 7. 通用接口
+## 10. 通用接口
 
 所有可编排的 REST 接口均收敛为单一入口，便于中控/前端统一调用。
 
-### 7.1 获取支持的 action 列表
+### 10.1 获取支持的 action 列表
 
 **GET** `/api/common/actions`
 
@@ -483,7 +673,7 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 
 ---
 
-### 7.2 通用调用
+### 10.2 通用调用
 
 **POST** `/api/common`
 
@@ -553,12 +743,19 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 | asr.start | `{}` | 启动 ASR 程序 |
 | asr.stop | `{}` | 停止 ASR 程序 |
 | asr.status | `{}` | 获取 ASR 进程状态 |
+| motion_control.mc_action.set | `{ "ext_action": "RL_LOCOMOTION_DEFAULT\|..." }` | 切换运控状态机 |
+| motion_control.mc_action.get | `{}` | 查询当前运控状态机 |
+| map.list | `{}` | 获取地图列表（含当前工作地图） |
+| map.detail | `{ "map_id": "string" }` | 获取地图详情（2D+拓扑点位） |
+| nav.planning_to_goal | `{ "current_working_map_id", "point_id", 可选 "task_id" }` | 下发到点规划导航任务 |
+| nav.task_control | `{ "action": "cancel\|pause\|resume", "task_id" }` | 取消/暂停/恢复导航任务 |
+| nav.status | `{ 可选 "task_id"，0 表示最近一次 }` | 获取导航任务状态 |
 
 若传入不支持的 `action`，返回 `code: 400`，提示可调用 `GET /api/common/actions` 查看列表。
 
 ---
 
-## 8. 接口总览
+## 11. 接口总览
 
 | 分类 | 方法 | 路径 | 说明 |
 |------|------|------|------|
@@ -569,6 +766,8 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 | TTS | PUT | /api/tts/volume | 设置音量 |
 | Agent | POST | /api/agent-control/agent-properties | 设置交互模式 |
 | Agent | GET | /api/agent-control/agent-properties | 查询交互模式 |
+| Motion Control | POST | /api/motion-control/mc-action | 切换运控状态机 |
+| Motion Control | GET | /api/motion-control/mc-action | 查询当前运控状态机 |
 | 人脸 | GET | /api/face-recognition/cloud-db | 云端人脸库信息 |
 | 人脸 | POST | /api/face-recognition | 启动人脸识别 |
 | 人脸 | DELETE | /api/face-recognition | 停止人脸识别 |
@@ -576,6 +775,11 @@ PC 端会进行语音转文字（FunASR）并返回识别文本。
 | ASR | POST | /api/asr | 启动 ASR |
 | ASR | DELETE | /api/asr | 停止 ASR |
 | ASR | GET | /api/asr | ASR 进程状态 |
+| Map | GET | /api/map/list | 获取地图列表 |
+| Map | GET | /api/map/detail | 获取地图详情 |
+| Nav | POST | /api/nav/planning-to-goal | 下发到点规划导航 |
+| Nav | POST | /api/nav/task-control | 取消/暂停/恢复导航任务 |
+| Nav | GET | /api/nav/status | 获取导航任务状态 |
 | Webhook | POST | /api/webhooks/face-recognition | 人脸识别结果回调 |
 | Webhook | POST | /api/webhooks/asr/audio | ASR 音频上传 |
 | 通用 | GET | /api/common/actions | 获取 action 列表 |

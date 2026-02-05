@@ -38,6 +38,13 @@ COMMON_ACTIONS = [
     {"action": "asr.start", "params": {}, "desc": "启动 ASR 程序"},
     {"action": "asr.stop", "params": {}, "desc": "停止 ASR 程序"},
     {"action": "asr.status", "params": {}, "desc": "获取 ASR 进程状态"},
+    {"action": "motion_control.mc_action.set", "params": {"ext_action": "DEFAULT|RL_LOCOMOTION_DEFAULT|PASSIVE_UPPER_BODY_JOINT_SERVO"}, "desc": "切换运控状态机"},
+    {"action": "motion_control.mc_action.get", "params": {}, "desc": "查询当前运控状态机"},
+    {"action": "map.list", "params": {}, "desc": "获取地图列表（含当前工作地图）"},
+    {"action": "map.detail", "params": {"map_id": "string"}, "desc": "获取地图详情（2D+拓扑点位）"},
+    {"action": "nav.planning_to_goal", "params": {"task_id": "可选", "current_working_map_id": "string", "point_id": "int"}, "desc": "下发到点规划导航任务"},
+    {"action": "nav.task_control", "params": {"action": "cancel|pause|resume", "task_id": "string"}, "desc": "取消/暂停/恢复导航任务"},
+    {"action": "nav.status", "params": {"task_id": "可选，0 表示最近一次"}, "desc": "获取导航任务状态"},
 ]
 
 
@@ -147,6 +154,100 @@ async def _asr_status(params: dict) -> dict:
     return result if isinstance(result, dict) and "code" in result else _ok(result)
 
 
+async def _motion_control_mc_action_set(params: dict) -> dict:
+    ext_action = params.get("ext_action")
+    if ext_action not in ("DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO"):
+        return _err(400, "ext_action 须为 DEFAULT | RL_LOCOMOTION_DEFAULT | PASSIVE_UPPER_BODY_JOINT_SERVO")
+    result = await rac.set_mc_action(ext_action)
+    return _ok() if result.get("state") == "CommonState_SUCCESS" else _err(400, result.get("state", "切换失败"))
+
+
+async def _motion_control_mc_action_get(params: dict) -> dict:
+    result = await rac.get_mc_action()
+    info = result.get("info", {})
+    return _ok({"current_action": info.get("current_action"), "ext_action": info.get("ext_action"), "status": info.get("status")})
+
+
+async def _map_list(params: dict) -> dict:
+    stored = await rac.get_stored_map_names()
+    map_lists = stored.get("data", {}).get("map_lists", [])
+    current_result = await rac.get_current_working_map()
+    current_working_map_id = current_result.get("data", {}).get("map_id", "")
+    current_working_map_name = ""
+    for m in map_lists:
+        if m.get("map_id") == current_working_map_id:
+            current_working_map_name = m.get("map_name", "")
+            break
+    return _ok({
+        "current_working_map_id": current_working_map_id,
+        "current_working_map_name": current_working_map_name,
+        "map_lists": map_lists,
+    })
+
+
+async def _map_detail(params: dict) -> dict:
+    map_id = params.get("map_id")
+    if not map_id:
+        return _err(400, "缺少参数 map_id")
+    stored = await rac.get_stored_map_names()
+    map_ids = [m.get("map_id") for m in stored.get("data", {}).get("map_lists", [])]
+    if map_id not in map_ids:
+        return _err(400, "地图ID不存在")
+    whole_map_result = await rac.get_2d_whole_map(map_id)
+    topo_result = await rac.get_topo_msgs(map_id)
+    whole_data = whole_map_result.get("data", whole_map_result)
+    topo_data = topo_result.get("data", topo_result) or {}
+    points = [{"point_id": p.get("point_id"), "point_name": p.get("name")} for p in topo_data.get("points", [])]
+    return _ok({"map_id": whole_data.get("map_id"), "map_name": whole_data.get("map_name"), "points": points})
+
+
+async def _nav_planning_to_goal(params: dict) -> dict:
+    current_working_map_id = params.get("current_working_map_id")
+    point_id = params.get("point_id")
+    if not current_working_map_id:
+        return _err(400, "缺少参数 current_working_map_id")
+    if point_id is None:
+        return _err(400, "缺少参数 point_id")
+    try:
+        point_id = int(point_id)
+    except (TypeError, ValueError):
+        return _err(400, "point_id 须为整数")
+    current_result = await rac.get_current_working_map()
+    if current_working_map_id != current_result.get("data", {}).get("map_id"):
+        return _err(400, "非当前工作地图")
+    task_id = params.get("task_id", 0)
+    result = await rac.planning_navi_to_goal(task_id=task_id or 0, map_id=current_working_map_id, target_id=point_id)
+    if result.get("state") != "CommonState_SUCCESS":
+        return _err(400, "地图ID或目标点ID不正确")
+    return _ok({"task_id": result.get("task_id")})
+
+
+async def _nav_task_control(params: dict) -> dict:
+    action = params.get("action")
+    task_id = params.get("task_id")
+    if action not in ("cancel", "pause", "resume"):
+        return _err(400, "action 须为 cancel | pause | resume")
+    if not task_id:
+        return _err(400, "缺少参数 task_id")
+    fns = {"cancel": rac.cancel_navi_task, "pause": rac.pause_navi_task, "resume": rac.resume_navi_task}
+    try:
+        result = await fns[action](task_id)
+        if result.get("state") == "CommonState_SUCCESS":
+            return _ok()
+        return _err(400, "任务不存在、已结束或 task_id 不匹配")
+    except Exception:
+        return _err(400, "任务不存在、已结束或 task_id 不匹配")
+
+
+async def _nav_status(params: dict) -> dict:
+    task_id = params.get("task_id", 0)
+    try:
+        result = await rac.get_navi_task_status(task_id)
+        return _ok({"task_id": result.get("task_id"), "state": result.get("state")})
+    except Exception:
+        return _err(400, "任务不存在或已结束")
+
+
 # action -> 异步处理器
 ACTION_HANDLERS: dict[str, Callable[[dict], Awaitable[dict]]] = {
     "tts.play": _tts_play,
@@ -163,6 +264,13 @@ ACTION_HANDLERS: dict[str, Callable[[dict], Awaitable[dict]]] = {
     "asr.start": _asr_start,
     "asr.stop": _asr_stop,
     "asr.status": _asr_status,
+    "motion_control.mc_action.set": _motion_control_mc_action_set,
+    "motion_control.mc_action.get": _motion_control_mc_action_get,
+    "map.list": _map_list,
+    "map.detail": _map_detail,
+    "nav.planning_to_goal": _nav_planning_to_goal,
+    "nav.task_control": _nav_task_control,
+    "nav.status": _nav_status,
 }
 
 

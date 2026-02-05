@@ -319,6 +319,15 @@ class RobotAPIClient:
         response = await self.client.post(url, json=payload)
         return response.json()
 
+    async def get_current_working_map(self, command: str = "MappingCommand_GET_CURRENT_WORKING_MAP") -> dict:
+        """获取当前工作地图"""
+        url = f"http://{self.orin_mapped_ip}:50807/rpc/aimdk.protocol.MappingService/GetCurrentWorkingMap"
+        payload = {
+            "command": command
+        }
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
     async def get_2d_whole_map(self, map_id: str, command: str = "MappingCommand_GET_2D_WHOLE_MAP") -> dict:
         """
         获取 2D 地图数据（MappingService）根据地图 id 返回整张 2D 地图的元数据及栅格数据（PNG）
@@ -380,12 +389,12 @@ class RobotAPIClient:
         self,
         task_id: str | int,
         map_id: str,
-        target_id: str,
+        target_id: int,
         guide_line_id: int = 0,
         ackerman_mode: bool = False,
     ) -> dict:
         """
-        下发给定目标点 ID 的规划导航任务
+        下发给定目标点 id 的规划导航任务
 
         执行前需：机器人重定位成功；下发任务的地图 id 与重定位地图一致；MC 状态已切到 RL_LOCOMOTION_DEFAULT
         到点精度范围最大约 0.4 米
@@ -393,7 +402,7 @@ class RobotAPIClient:
         Args:
             task_id: 任务 id，传 0 时 PNC 会自动生成并在响应中返回，客户端需保存以便后续取消/暂停/恢复或查询状态
             map_id: 当前地图 id，须与重定位使用的地图一致
-            target_id: 导航点 id（拓扑点位 point_id）
+            target_id: 导航点 id
             guide_line_id: 保留字段未使用，按示例填 0 即可
             ackerman_mode: 保留字段未使用，按示例填 false 即可
 
@@ -412,11 +421,23 @@ class RobotAPIClient:
         return response.json()
 
     async def cancel_navi_task(self, task_id: str) -> dict:
-        """取消导航任务"""
+        """取消导航任务（仅当 task_id 匹配时才响应）"""
         url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionCancel"
-        payload = {
-            "task_id": task_id
-        }
+        payload = {"task_id": task_id}
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def pause_navi_task(self, task_id: str) -> dict:
+        """暂停导航任务（仅当 task_id 匹配时才响应）"""
+        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionPause"
+        payload = {"task_id": task_id}
+        response = await self.client.post(url, json=payload)
+        return response.json()
+
+    async def resume_navi_task(self, task_id: str) -> dict:
+        """恢复暂停中的导航任务（仅当 task_id 匹配时才响应）"""
+        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionResume"
+        payload = {"task_id": task_id}
         response = await self.client.post(url, json=payload)
         return response.json()
 
@@ -438,7 +459,7 @@ class RobotAPIClient:
                 - PncServiceState_SUCCESS: 任务完成
                 - PncServiceState_FAILED: 任务失败
         """
-        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionGetStatus"
+        url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionGetState"
         payload = {
             "task_id": task_id
         }
