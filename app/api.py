@@ -127,7 +127,7 @@ async def get_agent_properties():
 
 
 @router.post("/motion-control/mc-action")
-async def set_mc_action(ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"] = Body(..., description="目标运控 Action", embed=True)):
+async def set_mc_action(ext_action: Literal["RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"] = Body(..., description="目标运控 Action", embed=True)):
     """切换运动控制状态机（异步，需轮询 GET 接口确认是否切换完成）"""
     result = await rac.set_mc_action(ext_action)
     return {"code": 0, "msg": "success", "data": None}
@@ -219,24 +219,27 @@ async def get_asr_status():
 async def get_stored_map_names():
     """获取地图列表"""
     result = await rac.get_stored_map_names()
-    data = result.get("data", result)
-    return {"code": 0, "msg": "success", "data": data}
+    return {
+        "code": 0,
+        "msg": "success",
+        "data": result["data"]["map_lists"],
+    }
 
 
 @router.get("/map/detail")
 async def get_map_detail(map_id: str = Query(..., description="地图 id")):
-    """"""
+    """获取地图详情"""
     whole_map_result = await rac.get_2d_whole_map(map_id)
     topo_result = await rac.get_topo_msgs(map_id)
     points = []
-    for point in topo_result["points"]:
+    for point in topo_result["data"]["points"]:
         points.append({
             "point_id": point["point_id"],
             "point_name": point["name"],
         })
     return {"code": 0, "msg": "success", "data": {
-        "map_id": whole_map_result["map_id"],
-        "map_name": whole_map_result["map_name"],
+        "map_id": whole_map_result["data"]["map_id"],
+        "map_name": whole_map_result["data"]["map_name"],
         "points": points,
     }}
 

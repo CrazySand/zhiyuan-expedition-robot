@@ -6,7 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.handlers import http_exception_handler, global_exception_handler, validation_exception_handler
 from app.api import router
 from app.api_common import router as common_router
-from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT
+from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT, RELOAD
 
 # =======================================================================
 
@@ -51,4 +51,4 @@ app.exception_handler(RequestValidationError)(validation_exception_handler)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)
+    uvicorn.run("app.main:app", host=SERVER_HOST, port=SERVER_PORT, reload=RELOAD)

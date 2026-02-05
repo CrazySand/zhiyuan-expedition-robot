@@ -215,7 +215,7 @@ class RobotAPIClient:
 
         Args:
             ext_action: 目标运控 Action，枚举值：
-                - "DEFAULT": 默认模式，运控启动后的默认 action
+                - "DEFAULT": 默认模式，运控启动后的默认 action，这个模式似乎代表着急停，切换到此模式之后机器人双脚无力，并且不能再切换为其它模式
                 - "RL_LOCOMOTION_DEFAULT": 强化行走模式（拟人行走，走路时手臂会摆动）
                 - "PASSIVE_UPPER_BODY_JOINT_SERVO": 下肢被动上肢伺服模式（下肢不使能，手臂可接收外部关节伺服指令）
                 - "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"：强化行走上肢伺服模式（下肢拟人行走或站立，上肢接受外部关节伺服指令，行走或站立时做动作（使用全身控制的强化模型，更具有稳定性）
