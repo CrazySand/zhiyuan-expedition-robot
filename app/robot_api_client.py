@@ -23,10 +23,9 @@ class RobotAPIClient:
         """
         TTS 播报接口，依赖联网
 
-        Note:
-            - 只支持短文本请求，最高只支持 1024 字节，约 200 个中文/英文
-            - 麦克风优先级是最高的，如果麦克风有播报，tts 会被加入队列
-            - is_interrupted 参数似乎没用
+        只支持短文本请求，最高只支持 1024 字节，约 200 个中文/英文
+        麦克风优先级是最高的，如果麦克风有播报，tts 会被加入队列
+        is_interrupted 参数似乎没用
 
         Args:
             text (str): 播报文本内容
@@ -79,8 +78,7 @@ class RobotAPIClient:
         """
         TTS/音频文件播放状态查询
 
-        Note:
-            实际上大多情况下只能获取到 "TTSStatusType_Playing" 和 "TTSStatusType_NOTInQue" 这两种状态
+        实际上大多情况下只能获取到 "TTSStatusType_Playing" 和 "TTSStatusType_NOTInQue" 这两种状态
 
         Args:
             trace_id (str): 播报 id，填写调用 PlayTTS 或 PlayMediaFile 接口时传入的自定义 id
@@ -136,9 +134,8 @@ class RobotAPIClient:
         """
         调节音量
 
-        Note:
-            - 注意不要调节音量超过 70，音量超出此范围扬声器经功放放大后会超额定工作，造成扬声器损坏
-            - 如需静音，请将 audio_volume 字段设为 0，is_mute 设为 true
+        注意不要调节音量超过 70，音量超出此范围扬声器经功放放大后会超额定工作，造成扬声器损坏
+        如需静音，请将 audio_volume 字段设为 0，is_mute 设为 true
 
         Args:
             audio_volume (int): 音量大小，0-100 的数值
@@ -166,9 +163,8 @@ class RobotAPIClient:
         """
         设置交互运行模式
 
-        Note:
-            - 调用后需要重启 agent 或重启机器人方可生效
-            - 调用后返回值为 "CommonState_UNKNOWN" 是正常现象，可以调用 get_agent_properties 接口，查看交互运行模式是否切换成功
+        调用后需要重启 agent 或重启机器人方可生效
+        调用后返回值为 "CommonState_UNKNOWN" 是正常现象，可以调用 get_agent_properties 接口，查看交互运行模式是否切换成功
 
         Args:
             mode (Literal["only_voice", "voice_face", "normal"]): 交互运行模式，枚举值：
@@ -253,7 +249,7 @@ class RobotAPIClient:
         response = await self.client.post(url, json={})
         return response.json()
 
-    # ============================= Face Recognition ========================================
+    # =================================== Face Recognition ========================================
 
     async def get_cloud_face_db_info(self) -> dict:
         """获取云端人脸数据库信息"""
@@ -279,7 +275,7 @@ class RobotAPIClient:
         response = await self.client.get(url)
         return response.json()
 
-    # ============================= ASR =======================================================
+    # =================================== ASR =======================================================
 
     async def start_asr(self) -> dict:
         """启动 ASR 程序（get_voice.py）"""
@@ -299,7 +295,7 @@ class RobotAPIClient:
         response = await self.client.get(url)
         return response.json()
 
-    # ============================= MAP =======================================================
+    # =================================== MAP =======================================================
 
     async def get_stored_map_names(self, command: str = "MappingCommand_GET_STORED_MAP_NAME") -> dict:
         """
@@ -383,7 +379,7 @@ class RobotAPIClient:
         response = await self.client.post(url, json=payload)
         return response.json()
 
-    # ============================= NAV =======================================================
+    # =================================== NAV =======================================================
 
     async def planning_navi_to_goal(
         self,
@@ -421,21 +417,21 @@ class RobotAPIClient:
         return response.json()
 
     async def cancel_navi_task(self, task_id: str) -> dict:
-        """取消导航任务（仅当 task_id 匹配时才响应）"""
+        """取消导航任务"""
         url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionCancel"
         payload = {"task_id": task_id}
         response = await self.client.post(url, json=payload)
         return response.json()
 
     async def pause_navi_task(self, task_id: str) -> dict:
-        """暂停导航任务（仅当 task_id 匹配时才响应）"""
+        """暂停导航任务"""
         url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionPause"
         payload = {"task_id": task_id}
         response = await self.client.post(url, json=payload)
         return response.json()
 
     async def resume_navi_task(self, task_id: str) -> dict:
-        """恢复暂停中的导航任务（仅当 task_id 匹配时才响应）"""
+        """恢复暂停中的导航任务"""
         url = f"http://{self.orin_mapped_ip}:53176/rpc/aimdk.protocol.PncService/ActionResume"
         payload = {"task_id": task_id}
         response = await self.client.post(url, json=payload)
@@ -464,4 +460,116 @@ class RobotAPIClient:
             "task_id": task_id
         }
         response = await self.client.post(url, json=payload)
+        return response.json()
+
+    # =================================== System State =======================================================
+
+    async def get_system_state(self) -> dict:
+        """
+        获取系统状态
+
+        Returns:
+            dict: 包含以下字段的 JSON 响应：
+                - header: 通用响应头
+                - cur_state: 当前系统状态
+                    - Startup: 启动中
+                    - Ready: 启动完成
+                    - Manual: 人工操作
+                    - MotionStream: 遥操作
+                    - OTA: 远程升级
+                    - Estop: 急停
+                    - Poweroff: 关机
+                    - Reboot: 重启
+                    - Reset: 重置
+                    - Safe: 安全
+                - cur_status: 系统当前情况
+                    - SystemStatus_IN_INITIAL: 初始化
+                    - SystemStatus_IN_READY: 已完成切换
+                    - SystemStatus_IN_MOVE: 切换中
+                    - SystemStatus_IN_ROLLBACK: 回滚中
+                    - SystemStatus_IN_RECOVERY: 恢复中
+        """
+        url = f"http://{self.orin_mapped_ip}:51011/rpc/aimdk.protocol.SystemService/GetSystemState"
+        response = await self.client.post(url, json={})
+        return response.json()
+
+    async def get_bms_state(self) -> dict:
+        """获取 BMS 电池管理系统状态
+
+        Returns:
+            dict: 包含 data 的 JSON 响应，data 内字段说明：
+                - ver: 版本号信息 (hardware_major/minor/revision, software_major/minor/revision)
+                - voltage: 当前电压，单位 mV
+                - current: 当前电流，单位 mA
+                - power: 当前功率，单位 mW
+                - temperature: 当前温度，单位 0.1 摄氏度
+                - capacity: 当前容量，单位 mAh
+                - charge: 当前电量百分比
+                - power_supply_health: 暂不开放
+                - power_supply_status: 充电状态 (IDEL/CHARGING/FULL)
+                - cycles_num: 循环次数
+                - cycles_capacity: 循环容量(充放电总计)，单位 Ah
+                - abnormal_state: 异常状态 (NORMAL/SHORT_CIRCUIT/DISCHARGE_OVERCURRENT/...)
+                - charger_state: 充电器是否插入 (ChargerNotPulgin/ChargerConnected)
+                - bms_state: 电池是否插入 (BatteryStatus_NotPulgin/BatteryStatus_Connected)
+                - max_current: 当前最大电流
+                - battery_firmware_type: OLD/NEW
+                - battery_key_state: SHORT_CURCUIT/CONNECTED
+                - battery_pack_state: NORMAL/ABNORMAL
+                - battery_comm_state: NORMAL/ABNORMAL
+        """
+        url = f"http://{self.x86_ip}:56421/rpc/aimdk.protocol.HalBmsService/GetBmsState"
+        response = await self.client.post(url, json={})
+        return response.json()
+
+    async def get_emergency_state(self) -> dict:
+        """
+        获取急停状态
+        急停触发时会有告警，也可通过 GetAlertList 获悉；本接口提供单独查询
+
+        Returns:
+            dict: 包含 data 的 JSON 响应，data 内主要字段：
+                - active: 急停是否触发
+                - reason: 急停触发原因
+                - wireless_emergency_stop: 无线急停是否触发
+                - software_emergency_stop: 软件急停是否触发
+                其余传感器告警字段无需关注。如返回空 json body，表示所有参数为默认值，即急停未触发
+        """
+        url = f"http://{self.x86_ip}:56421/rpc/aimdk.protocol.HalEmergencyService/GetEmergencyState"
+        response = await self.client.post(url, json={})
+        return response.json()
+
+    async def get_alert_list(self) -> dict:
+        """
+        获取当前告警列表
+
+        Returns:
+            dict: 包含 data 的 JSON 响应，data.alerts 为告警列表，每条告警字段：
+                - id: 本条告警 id
+                - appeared_timestamp: 告警出现的时间戳
+                - disappeared_timestamp: 告警消失的时间戳
+                - alert_code: 告警码
+                - state: 告警状态
+                    - UNDEFINED: 未知
+                    - ACTIVE: 告警中
+                    - CLEARED: 已清除
+                    - ExceptionChanged: 告警中异常变更
+                    - Recovering: 恢复中
+                - exception_list: 异常列表
+                    - type: Normal、Trigger_Appear、Trigger_Disappear
+                    - module_id、code、info、module_name
+                - description: 告警描述
+                - level: 告警等级
+                    - UNDEFINED: 无
+                    - FATAL: 致命
+                    - SERIOUS: 严重
+                    - WARNING: 警告
+                    - HIDDEN_DANGERS: 隐患
+                    - STATUS: 状态
+                - manual_clear: 是否支持手动清除
+                - show_type: Normal、Toast
+                - solution_list: 每项含 type、content
+        """
+        url = f"http://{self.orin_mapped_ip}:50587/rpc/aimdk.protocol.HDSService/GetAlertList"
+        response = await self.client.post(url, json={})
         return response.json()

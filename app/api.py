@@ -5,6 +5,7 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Body, File, Query, UploadFile
 from app.robot_api_client import RobotAPIClient
+from app.config import CLOUD_EVENT_CALLBACK_URL
 
 # =============================== ASR Tool ==========================================
 
@@ -31,8 +32,9 @@ def recognize_audio(audio_path: str) -> str:
 # =========================================================================
 
 
+http_client = httpx.AsyncClient(timeout=60)
 rac = RobotAPIClient(
-    httpx.AsyncClient(timeout=60), orin_mapped_ip="127.0.0.1", x86_ip="192.168.1.115")
+    http_client, orin_mapped_ip="127.0.0.1", x86_ip="192.168.1.115")
 
 router = APIRouter(prefix="/api")
 
@@ -366,14 +368,26 @@ async def webhooks_face_recognition(data: dict = Body(..., embed=False)):
     face_id = data["face_id"]
     confidence = data["confidence"]
 
-    # 在这里把以上数据发送到中控即可
-    print(f"""
-    收到 FaceID 识别结果回调:
-    timestamp: {timestamp}
-    face_id: {face_id}
-    confidence: {confidence}
+    # await http_client.post(CLOUD_EVENT_CALLBACK_URL, json={
+    #     "action": "faceRecognition",
+    #     "params": {
+    #         "timestamp": timestamp,
+    #         "face_id": face_id,
+    #         "confidence": confidence,
+    #     }
+    # })
+    print(f"""\
+POST {CLOUD_EVENT_CALLBACK_URL}
+body: 
+    {{
+        "action": "faceRecognition",
+        "params": {{
+            "timestamp": {timestamp},
+            "face_id": {face_id},
+            "confidence": {confidence},
+        }}
+    }}
     """)
-    pass
 
     return {
         "code": 0,
@@ -396,14 +410,22 @@ async def webhooks_asr_audio(file: UploadFile = File(..., description="音频文
         path = tmp.name
         text = recognize_audio(path)
 
-        # 这里把识别到的文本发送到中控
-        print(f"""
-        收到 ASR 音频文件:
-        size: {len(content)} bytes
-        text: {text}
+        # await http_client.post(CLOUD_EVENT_CALLBACK_URL, json={
+        #     "action": "asr",
+        #     "params": {
+        #         "text": text,
+        #     }
+        # })
+        print(f"""\
+    POST {CLOUD_EVENT_CALLBACK_URL}
+    body: 
+        {{
+            "action": "asr",
+            "params": {{
+                "text": {text},
+            }}
+        }}
         """)
-        pass
-
         return {
             "code": 0,
             "msg": "操作成功",
