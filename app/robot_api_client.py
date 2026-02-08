@@ -202,7 +202,7 @@ class RobotAPIClient:
         response = await self.client.post(url)
         return response.json()
 
-    # ============================= Motion Control ========================================
+    # ================================== Motion Control ========================================
 
     async def set_mc_action(self, ext_action: Literal["DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO", "RL_LOCOMOTION_ARM_EXT_JOINT_SERVO"], action: str = "McAction_USE_EXT_CMD") -> dict:
         """

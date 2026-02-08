@@ -29,8 +29,6 @@ COMMON_ACTIONS = [
     {"action": "tts.status", "params": {"trace_id": "string, 必填"}, "desc": "查询 TTS 播报状态"},
     {"action": "tts.volume.get", "params": {}, "desc": "获取当前音量"},
     {"action": "tts.volume.set", "params": {"audio_volume": "int, 0~70"}, "desc": "设置音量"},
-    {"action": "agent.properties.set", "params": {"mode": "only_voice|voice_face|normal"}, "desc": "设置交互模式并重启 agent"},
-    {"action": "agent.properties.get", "params": {}, "desc": "查询交互模式"},
     {"action": "face_recognition.cloud_db", "params": {}, "desc": "获取云端人脸库信息"},
     {"action": "face_recognition.start", "params": {}, "desc": "启动人脸识别程序"},
     {"action": "face_recognition.stop", "params": {}, "desc": "停止人脸识别程序"},
@@ -38,11 +36,9 @@ COMMON_ACTIONS = [
     {"action": "asr.start", "params": {}, "desc": "启动 ASR 程序"},
     {"action": "asr.stop", "params": {}, "desc": "停止 ASR 程序"},
     {"action": "asr.status", "params": {}, "desc": "获取 ASR 进程状态"},
-    {"action": "motion_control.mc_action.set", "params": {"ext_action": "DEFAULT|RL_LOCOMOTION_DEFAULT|PASSIVE_UPPER_BODY_JOINT_SERVO"}, "desc": "切换运控状态机"},
-    {"action": "motion_control.mc_action.get", "params": {}, "desc": "查询当前运控状态机"},
     {"action": "map.list", "params": {}, "desc": "获取地图列表（含当前工作地图）"},
     {"action": "map.detail", "params": {"map_id": "string"}, "desc": "获取地图详情（2D+拓扑点位）"},
-    {"action": "nav.planning_to_goal", "params": {"task_id": "可选", "current_working_map_id": "string", "point_id": "int"}, "desc": "下发到点规划导航任务"},
+    {"action": "nav.planning_to_goal", "params": {"task_id": "可选", "point_id": "int, 必填"}, "desc": "下发到点规划导航任务（使用当前工作地图）"},
     {"action": "nav.task_control", "params": {"action": "cancel|pause|resume", "task_id": "string"}, "desc": "取消/暂停/恢复导航任务"},
     {"action": "nav.status", "params": {"task_id": "可选，0 表示最近一次"}, "desc": "获取导航任务状态"},
 ]
@@ -104,27 +100,15 @@ async def _tts_volume_set(params: dict) -> dict:
     return _ok()
 
 
-async def _agent_properties_set(params: dict) -> dict:
-    mode = params.get("mode")
-    if mode not in ("only_voice", "voice_face", "normal"):
-        return _err(400, "mode 须为 only_voice | voice_face | normal")
-    await rac.set_agent_properties(mode)
-    await rac.agent_mode_reboot()
-    return _ok()
-
-
-async def _agent_properties_get(params: dict) -> dict:
-    result = await rac.get_agent_properties()
-    mode = result["contents"]["properties"]["2"]
-    return _ok({"mode": mode})
-
-
 async def _face_recognition_cloud_db(params: dict) -> dict:
     result = await rac.get_cloud_face_db_info()
     return result if isinstance(result, dict) and "code" in result else _ok(result)
 
 
 async def _face_recognition_start(params: dict) -> dict:
+    current_agent_mode = (await rac.get_agent_properties()).get("contents", {}).get("properties", {}).get("2")
+    if current_agent_mode not in ("voice_face", "normal"):
+        return _err(400, "当前交互模式不是 voice_face 或 normal")
     result = await rac.start_face_recognition()
     return result if isinstance(result, dict) and "code" in result else _ok(result)
 
@@ -140,6 +124,9 @@ async def _face_recognition_status(params: dict) -> dict:
 
 
 async def _asr_start(params: dict) -> dict:
+    current_agent_mode = (await rac.get_agent_properties()).get("contents", {}).get("properties", {}).get("2")
+    if current_agent_mode not in ("only_voice", "voice_face"):
+        return _err(400, "当前交互模式不是 only_voice 或 voice_face")
     result = await rac.start_asr()
     return result if isinstance(result, dict) and "code" in result else _ok(result)
 
@@ -152,20 +139,6 @@ async def _asr_stop(params: dict) -> dict:
 async def _asr_status(params: dict) -> dict:
     result = await rac.get_asr_status()
     return result if isinstance(result, dict) and "code" in result else _ok(result)
-
-
-async def _motion_control_mc_action_set(params: dict) -> dict:
-    ext_action = params.get("ext_action")
-    if ext_action not in ("DEFAULT", "RL_LOCOMOTION_DEFAULT", "PASSIVE_UPPER_BODY_JOINT_SERVO"):
-        return _err(400, "ext_action 须为 DEFAULT | RL_LOCOMOTION_DEFAULT | PASSIVE_UPPER_BODY_JOINT_SERVO")
-    result = await rac.set_mc_action(ext_action)
-    return _ok() if result.get("state") == "CommonState_SUCCESS" else _err(400, result.get("state", "切换失败"))
-
-
-async def _motion_control_mc_action_get(params: dict) -> dict:
-    result = await rac.get_mc_action()
-    info = result.get("info", {})
-    return _ok({"current_action": info.get("current_action"), "ext_action": info.get("ext_action"), "status": info.get("status")})
 
 
 async def _map_list(params: dict) -> dict:
@@ -202,10 +175,7 @@ async def _map_detail(params: dict) -> dict:
 
 
 async def _nav_planning_to_goal(params: dict) -> dict:
-    current_working_map_id = params.get("current_working_map_id")
     point_id = params.get("point_id")
-    if not current_working_map_id:
-        return _err(400, "缺少参数 current_working_map_id")
     if point_id is None:
         return _err(400, "缺少参数 point_id")
     try:
@@ -213,8 +183,7 @@ async def _nav_planning_to_goal(params: dict) -> dict:
     except (TypeError, ValueError):
         return _err(400, "point_id 须为整数")
     current_result = await rac.get_current_working_map()
-    if current_working_map_id != current_result.get("data", {}).get("map_id"):
-        return _err(400, "非当前工作地图")
+    current_working_map_id = current_result.get("data", {}).get("map_id")
     task_id = params.get("task_id", 0)
     result = await rac.planning_navi_to_goal(task_id=task_id or 0, map_id=current_working_map_id, target_id=point_id)
     if result.get("state") != "CommonState_SUCCESS":
@@ -255,8 +224,6 @@ ACTION_HANDLERS: dict[str, Callable[[dict], Awaitable[dict]]] = {
     "tts.status": _tts_status,
     "tts.volume.get": _tts_volume_get,
     "tts.volume.set": _tts_volume_set,
-    "agent.properties.set": _agent_properties_set,
-    "agent.properties.get": _agent_properties_get,
     "face_recognition.cloud_db": _face_recognition_cloud_db,
     "face_recognition.start": _face_recognition_start,
     "face_recognition.stop": _face_recognition_stop,
@@ -264,8 +231,6 @@ ACTION_HANDLERS: dict[str, Callable[[dict], Awaitable[dict]]] = {
     "asr.start": _asr_start,
     "asr.stop": _asr_stop,
     "asr.status": _asr_status,
-    "motion_control.mc_action.set": _motion_control_mc_action_set,
-    "motion_control.mc_action.get": _motion_control_mc_action_get,
     "map.list": _map_list,
     "map.detail": _map_detail,
     "nav.planning_to_goal": _nav_planning_to_goal,

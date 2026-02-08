@@ -226,7 +226,7 @@ async def get_asr_status():
     return result
 
 
-# ============================== Map ========================================
+# ============================== MAP ========================================
 
 # GET    /api/map/list          → 获取地图列表
 # GET    /api/map/detail        → 获取地图详情（query: map_id）
@@ -277,7 +277,7 @@ async def get_map_detail(map_id: str = Query(..., description="地图ID")):
         }}
 
 
-# ============================== Nav ========================================
+# ============================== NAV ========================================
 
 # POST   /api/nav/planning-to-goal  → 下发到点规划导航任务（body: task_id, map_id, target_id, ...）
 # POST   /api/nav/task-control      → 取消/暂停/恢复导航任务（body: action=cancel|pause|resume, task_id）
@@ -287,21 +287,15 @@ async def get_map_detail(map_id: str = Query(..., description="地图ID")):
 @router.post("/nav/planning-to-goal")
 async def nav_planning_to_goal(
     task_id: str | None = Body(None, description="任务ID，None 表示自动生成"),
-    current_working_map_id: str = Body(..., description="当前工作地图ID"),
     point_id: int = Body(..., description="导航点ID"),
 ):
     """下发给定目标点 ID 的规划导航任务"""
-    if current_working_map_id != (await rac.get_current_working_map())["data"]["map_id"]:
-        return {
-            "code": 400,
-            "msg": "非当前工作地图",
-            "data": None
-        }
+    current_working_map_id = (await rac.get_current_working_map())["data"]["map_id"]
     result = await rac.planning_navi_to_goal(
         task_id=task_id or 0,
         map_id=current_working_map_id,
         target_id=point_id,
-    )
+    ) 
     return {
         "code": 0,
         "msg": "操作成功",
