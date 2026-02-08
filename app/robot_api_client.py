@@ -525,7 +525,7 @@ class RobotAPIClient:
     async def get_emergency_state(self) -> dict:
         """
         获取急停状态
-        急停触发时会有告警，也可通过 GetAlertList 获悉；本接口提供单独查询
+        急停触发时会有告警，也可通过 GetAlertList 获悉；本接口提供单独查询，如果没有急停触发，则返回空 json body
 
         Returns:
             dict: 包含 data 的 JSON 响应，data 内主要字段：

@@ -16,21 +16,12 @@ async def on_periodic_tick():
     """定时回调，每 5 分钟执行一次，在此填写逻辑"""
     system_state = await rac.get_system_state()
     bms_state = await rac.get_bms_state()
-    emergency_state = await rac.get_emergency_state()
     alert_list = await rac.get_alert_list()
 
     params = {
         "current_state": system_state["cur_state"],  # 当前系统状态
         "temperature": bms_state["data"]["temperature"],  # 当前温度
         "battery_percent": bms_state["data"]["charge"],  # 当前电量
-        "emergency_state": {
-            "active": emergency_state["data"]["active"],  # 急停是否触发
-            "reason": emergency_state["data"]["reason"],  # 急停触发原因
-            # 无线急停是否触发
-            "wireless_emergency_stop": emergency_state["data"]["wireless_emergency_stop"],
-            # 软件急停是否触发
-            "software_emergency_stop": emergency_state["data"]["software_emergency_stop"],
-        },
         "alert_list": alert_list["data"]["alerts"],
     }
     print(f"""\
@@ -42,10 +33,7 @@ body:
             "current_state": {system_state["cur_state"]},
             "temperature": {bms_state["data"]["temperature"]},
             "battery_percent": {bms_state["data"]["charge"]},
-            "emergency_state": {{
-                "active": {emergency_state["data"]["active"]},
-                "reason": {emergency_state["data"]["reason"]},
-            }}
+            "alert_list": {alert_list["data"]["alerts"]}
     }}
     """)
     await http_client.post(CLOUD_EVENT_CALLBACK_URL, json={
@@ -82,8 +70,12 @@ async def lifespan(app: FastAPI):
     task, stop_event = start_periodic_task()
     print("设置定时回调上报系统状态任务完成")
     # 设置 Agent 交互模式
-    await rac.set_agent_properties("voice_face")
-    print("设置 Agent 交互模式为 voice_face")
+    if (await rac.get_agent_properties())["contents"]["properties"]["2"] != "voice_face":
+        await rac.set_agent_properties("voice_face")
+        await rac.agent_mode_reboot()
+        print("当前 Agent 交互模式不为 voice_face，已设置并重启 Agent")
+    else:
+        print("Agent 交互模式为 voice_face")
     # 切换运控状态机
     await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
     print("切换运控状态机为 RL_LOCOMOTION_DEFAULT")
@@ -95,7 +87,6 @@ async def lifespan(app: FastAPI):
         await task
     except asyncio.CancelledError:
         pass
-
 
 app = FastAPI(lifespan=lifespan)
 
