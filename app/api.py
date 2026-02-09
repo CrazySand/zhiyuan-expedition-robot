@@ -296,6 +296,8 @@ async def nav_task_control(
 ):
     """取消 / 暂停 / 恢复导航任务（仅当 task_id 匹配时才响应）"""
     try:
+        if action == "resume":
+            await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
         fn = _NAV_TASK_ACTIONS[action]
         result = await fn(task_id)
         if result["state"] == "CommonState_SUCCESS":

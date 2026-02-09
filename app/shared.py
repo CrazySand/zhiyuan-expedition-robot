@@ -83,6 +83,7 @@ _NAV_POLL_INTERVAL = 5
 
 async def poll_nav_task_until_done(task_id: str):
     """后台轮询导航任务状态，结束时回调中控并退出"""
+    paused_callback_sent = False  # 标记是否已发送过 PAUSED 回调
     while True:
         await asyncio.sleep(_NAV_POLL_INTERVAL)
         try:
@@ -92,6 +93,17 @@ async def poll_nav_task_until_done(task_id: str):
             return
         state = result.get("state")
         logger.debug(f"导航任务状态: {state}")
+        
+        if state == "PncServiceState_PAUSED":
+            if not paused_callback_sent:
+                await rac.set_mc_action("McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO")
+                await send_callback_to_cloud(
+                    "navTaskPaused",
+                    {"task_id": task_id, "state": state},
+                )
+                paused_callback_sent = True
+            continue
+
         if state != "PncServiceState_RUNNING":
             await rac.set_mc_action("McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO")
             await send_callback_to_cloud(
