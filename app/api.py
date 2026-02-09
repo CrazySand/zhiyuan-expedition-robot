@@ -213,10 +213,15 @@ async def get_asr_status():
 @router.get("/map/list")
 async def get_map_list():
     """获取地图列表"""
-    map_lists = (await rac.get_stored_map_names())["data"]["map_lists"]
-    current_working_map_id = (await rac.get_current_working_map())["data"]["map_id"]
-    current_working_map_name = next(
-        (map for map in map_lists if map["map_id"] == current_working_map_id), None)["map_name"]
+    stored = await rac.get_stored_map_names()
+    map_lists = stored.get("data", {}).get("map_lists", [])
+    current_result = await rac.get_current_working_map()
+    current_working_map_id = current_result.get("data", {}).get("map_id", "")
+    current_working_map_name = ""
+    for m in map_lists:
+        if m.get("map_id") == current_working_map_id:
+            current_working_map_name = m.get("map_name", "")
+            break
     return {
         "code": 0,
         "msg": "操作成功",
@@ -231,28 +236,27 @@ async def get_map_list():
 @router.get("/map/detail")
 async def get_map_detail(map_id: str = Query(..., description="地图ID")):
     """获取地图详情"""
-    if map_id not in [map["map_id"] for map in (await rac.get_stored_map_names())["data"]["map_lists"]]:
-        return {
-            "code": 400,
-            "msg": "地图ID不存在",
-            "data": None
-        }
+    stored = await rac.get_stored_map_names()
+    map_ids = [m.get("map_id") for m in stored.get("data", {}).get("map_lists", [])]
+    if map_id not in map_ids:
+        return {"code": 400, "msg": "地图ID不存在", "data": None}
     whole_map_result = await rac.get_2d_whole_map(map_id)
     topo_result = await rac.get_topo_msgs(map_id)
-    points = []
-    for point in topo_result["data"]["points"]:
-        points.append({
-            "point_id": point["point_id"],
-            "point_name": point["name"],
-        })
+    topo_data = topo_result.get("data", topo_result) or {}
+    points = [
+        {"point_id": p.get("point_id"), "point_name": p.get("name")}
+        for p in topo_data.get("points", [])
+    ]
+    whole_data = whole_map_result.get("data", whole_map_result)
     return {
         "code": 0,
         "msg": "操作成功",
         "data": {
-            "map_id": whole_map_result["data"]["map_id"],
-            "map_name": whole_map_result["data"]["map_name"],
+            "map_id": whole_data.get("map_id"),
+            "map_name": whole_data.get("map_name"),
             "points": points,
-        }}
+        },
+    }
 
 
 # ============================== NAV ========================================

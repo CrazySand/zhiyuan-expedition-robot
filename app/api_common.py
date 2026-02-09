@@ -3,6 +3,7 @@
 请求体: { "action": "动作名", "params": { ... } }
 Webhooks（人脸回调、ASR 音频上传）仍保留独立路径，不在此通用入口内
 """
+import asyncio
 from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, HTTPException
@@ -10,7 +11,11 @@ from pydantic import BaseModel, Field
 
 # 复用 api 中的机器人客户端，避免重复初始化
 from app.api import rac
-from app.shared import merge_cloud_db_with_local_images
+from app.shared import (
+    merge_cloud_db_with_local_images,
+    tts_finished_callback_delayed,
+    poll_nav_task_until_done,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -25,11 +30,14 @@ class CommonRequestBody(BaseModel):
 # 支持的 action 列表（用于文档与 GET /api/common/actions）
 # ---------------------------------------------------------------------------
 COMMON_ACTIONS = [
-    {"action": "tts.play", "params": {"text": "string, 必填, 1~200 字"}, "desc": "发起 TTS 播报"},
+    {"action": "tts.play", "params": {
+        "text": "string, 必填, 1~200 字"}, "desc": "发起 TTS 播报"},
     {"action": "tts.stop", "params": {}, "desc": "打断当前 TTS 播报"},
-    {"action": "tts.status", "params": {"trace_id": "string, 必填"}, "desc": "查询 TTS 播报状态"},
+    {"action": "tts.status", "params": {
+        "trace_id": "string, 必填"}, "desc": "查询 TTS 播报状态"},
     {"action": "tts.volume.get", "params": {}, "desc": "获取当前音量"},
-    {"action": "tts.volume.set", "params": {"audio_volume": "int, 0~70"}, "desc": "设置音量"},
+    {"action": "tts.volume.set", "params": {
+        "audio_volume": "int, 0~70"}, "desc": "设置音量"},
     {"action": "face_recognition.cloud_db", "params": {}, "desc": "获取云端人脸库信息"},
     {"action": "face_recognition.start", "params": {}, "desc": "启动人脸识别程序"},
     {"action": "face_recognition.stop", "params": {}, "desc": "停止人脸识别程序"},
@@ -38,10 +46,14 @@ COMMON_ACTIONS = [
     {"action": "asr.stop", "params": {}, "desc": "停止 ASR 程序"},
     {"action": "asr.status", "params": {}, "desc": "获取 ASR 进程状态"},
     {"action": "map.list", "params": {}, "desc": "获取地图列表（含当前工作地图）"},
-    {"action": "map.detail", "params": {"map_id": "string"}, "desc": "获取地图详情（2D+拓扑点位）"},
-    {"action": "nav.planning_to_goal", "params": {"task_id": "可选", "point_id": "int, 必填"}, "desc": "下发到点规划导航任务（使用当前工作地图）"},
-    {"action": "nav.task_control", "params": {"action": "cancel|pause|resume", "task_id": "string"}, "desc": "取消/暂停/恢复导航任务"},
-    {"action": "nav.status", "params": {"task_id": "可选，0 表示最近一次"}, "desc": "获取导航任务状态"},
+    {"action": "map.detail", "params": {
+        "map_id": "string"}, "desc": "获取地图详情（2D+拓扑点位）"},
+    {"action": "nav.planning_to_goal", "params": {"task_id": "可选",
+                                                  "point_id": "int, 必填"}, "desc": "下发到点规划导航任务（使用当前工作地图）"},
+    {"action": "nav.task_control", "params": {
+        "action": "cancel|pause|resume", "task_id": "string"}, "desc": "取消/暂停/恢复导航任务"},
+    {"action": "nav.status", "params": {
+        "task_id": "可选，0 表示最近一次"}, "desc": "获取导航任务状态"},
 ]
 
 
@@ -64,7 +76,9 @@ async def _tts_play(params: dict) -> dict:
     if len(text) < 1 or len(text) > 200:
         return _err(400, "text 长度需在 1~200 之间")
     result = await rac.play_tts(text)
-    return _ok({"trace_id": result["trace_id"]})
+    trace_id = result["trace_id"]
+    asyncio.create_task(tts_finished_callback_delayed(trace_id, text))
+    return _ok({"trace_id": trace_id})
 
 
 async def _tts_stop(params: dict) -> dict:
@@ -166,14 +180,16 @@ async def _map_detail(params: dict) -> dict:
     if not map_id:
         return _err(400, "缺少参数 map_id")
     stored = await rac.get_stored_map_names()
-    map_ids = [m.get("map_id") for m in stored.get("data", {}).get("map_lists", [])]
+    map_ids = [m.get("map_id")
+               for m in stored.get("data", {}).get("map_lists", [])]
     if map_id not in map_ids:
         return _err(400, "地图ID不存在")
     whole_map_result = await rac.get_2d_whole_map(map_id)
     topo_result = await rac.get_topo_msgs(map_id)
     whole_data = whole_map_result.get("data", whole_map_result)
     topo_data = topo_result.get("data", topo_result) or {}
-    points = [{"point_id": p.get("point_id"), "point_name": p.get("name")} for p in topo_data.get("points", [])]
+    points = [{"point_id": p.get("point_id"), "point_name": p.get(
+        "name")} for p in topo_data.get("points", [])]
     return _ok({"map_id": whole_data.get("map_id"), "map_name": whole_data.get("map_name"), "points": points})
 
 
@@ -185,13 +201,16 @@ async def _nav_planning_to_goal(params: dict) -> dict:
         point_id = int(point_id)
     except (TypeError, ValueError):
         return _err(400, "point_id 须为整数")
+    await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
     current_result = await rac.get_current_working_map()
     current_working_map_id = current_result.get("data", {}).get("map_id")
     task_id = params.get("task_id", 0)
     result = await rac.planning_navi_to_goal(task_id=task_id or 0, map_id=current_working_map_id, target_id=point_id)
     if result.get("state") != "CommonState_SUCCESS":
         return _err(400, "地图ID或目标点ID不正确")
-    return _ok({"task_id": result.get("task_id")})
+    out_task_id = result.get("task_id")
+    asyncio.create_task(poll_nav_task_until_done(str(out_task_id)))
+    return _ok({"task_id": out_task_id})
 
 
 async def _nav_task_control(params: dict) -> dict:
@@ -201,8 +220,11 @@ async def _nav_task_control(params: dict) -> dict:
         return _err(400, "action 须为 cancel | pause | resume")
     if not task_id:
         return _err(400, "缺少参数 task_id")
-    fns = {"cancel": rac.cancel_navi_task, "pause": rac.pause_navi_task, "resume": rac.resume_navi_task}
+    fns = {"cancel": rac.cancel_navi_task,
+           "pause": rac.pause_navi_task, "resume": rac.resume_navi_task}
     try:
+        if action == "resume":
+            await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
         result = await fns[action](task_id)
         if result.get("state") == "CommonState_SUCCESS":
             return _ok()

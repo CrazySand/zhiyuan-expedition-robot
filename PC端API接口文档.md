@@ -322,7 +322,8 @@ X-API-KEY: <密钥>
       "nickname": "张三",
       "priority": 1,
       "timestamp": "1764078863000",
-      "uid": "AGI812541E1FB25869472CE"
+      "uid": "AGI812541E1FB25869472CE",
+      "image_base64": "..."
     },
     {
       "description": "",
@@ -331,7 +332,8 @@ X-API-KEY: <密钥>
       "nickname": "李四",
       "priority": 2,
       "timestamp": "1764078580000",
-      "uid": "AGI81254464E98DB18C2C94"
+      "uid": "AGI81254464E98DB18C2C94",
+      "image_base64": "..."
     }
   ]
 }

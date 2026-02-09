@@ -42,6 +42,7 @@ def recognize_audio(audio_path: str) -> str:
 
 # ============================= 本地人脸图片（灵心平台） =====================================
 
+
 _IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif")
 
 
@@ -61,14 +62,14 @@ def load_local_face_images() -> dict[str, str]:
 
 
 def merge_cloud_db_with_local_images(cloud_db_result: dict) -> dict:
-    """将机器人 cloud-db 与本地人脸图片合并：按 name 匹配，匹配则写入 image_base64。"""
+    """将机器人 cloud-db 与本地人脸图片合并：按 name 匹配，匹配则写入 image_base64"""
     local_map = load_local_face_images()
-    for item in cloud_db_result.get("data") or []:
-        if not isinstance(item, dict):
-            continue
-        name = item.get("name")
-        if name is not None and name in local_map:
+    for item in cloud_db_result["data"]:
+        name = item["name"]
+        if name in local_map:
             item["image_base64"] = local_map[name]
+        else:
+            item["image_base64"] = None
     return cloud_db_result
 
 
@@ -128,7 +129,7 @@ async def poll_nav_task_until_done(task_id: str):
             return
         state = result.get("state")
         logger.debug(f"导航任务状态: {state}")
-        
+
         if state == "PncServiceState_PAUSED":
             if not paused_callback_sent:
                 await rac.set_mc_action("McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO")

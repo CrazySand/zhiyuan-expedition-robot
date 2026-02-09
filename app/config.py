@@ -26,4 +26,4 @@ FUN_ASR_MODEL = "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-
 TTS_SECONDS_PER_CHAR = 0.23
 
 # 展厅 PC 本地人脸图片文件夹（灵心平台上传的人脸），与机器人 cloud-db 合并后供中控同步；启动时若不存在则程序终止
-FACE_IMAGES_FOLDER = ""
+FACE_IMAGES_FOLDER = "/home/lan/Desktop/face_image"
