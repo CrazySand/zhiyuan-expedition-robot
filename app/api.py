@@ -4,7 +4,14 @@ import os
 import json
 from typing import Literal
 from fastapi import APIRouter, Body, File, Query, UploadFile
-from app.shared import rac, recognize_audio, send_callback_to_cloud, poll_nav_task_until_done, tts_finished_callback_delayed
+from app.shared import (
+    rac,
+    recognize_audio,
+    send_callback_to_cloud,
+    poll_nav_task_until_done,
+    tts_finished_callback_delayed,
+    merge_cloud_db_with_local_images,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -129,9 +136,9 @@ async def get_mc_action():
 
 @router.get("/face-recognition/cloud-db")
 async def get_cloud_face_db_info():
-    """获取云端人脸数据库信息"""
+    """获取云端人脸数据库信息（已与本地人脸图片文件夹按 name 合并 image_base64）"""
     result = await rac.get_cloud_face_db_info()
-    return result
+    return merge_cloud_db_with_local_images(result)
 
 
 @router.post("/face-recognition")

@@ -2,7 +2,9 @@
 共享资源：客户端实例、ASR 模型、回调工具函数等
 """
 import asyncio
+import base64
 import logging
+import os
 import shutil
 import httpx
 from funasr import AutoModel
@@ -12,6 +14,7 @@ from app.config import (
     CLOUD_EVENT_CALLBACK_URL,
     ENABLE_CLOUD_EVENT_CALLBACK,
     TTS_SECONDS_PER_CHAR,
+    FACE_IMAGES_FOLDER,
 )
 
 # ============================= 客户端实例 =====================================
@@ -36,6 +39,38 @@ def recognize_audio(audio_path: str) -> str:
     """语音识别"""
     result = asr_model.generate(input=audio_path)
     return result[0].get("text", "") if result else ""
+
+# ============================= 本地人脸图片（灵心平台） =====================================
+
+_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif")
+
+
+def load_local_face_images() -> dict[str, str]:
+    """遍历 FACE_IMAGES_FOLDER，返回 图片名称(无后缀) -> base64 的映射"""
+    mapping: dict[str, str] = {}
+    for name in os.listdir(FACE_IMAGES_FOLDER):
+        path = os.path.join(FACE_IMAGES_FOLDER, name)
+        if not os.path.isfile(path):
+            continue
+        base, ext = os.path.splitext(name)
+        if ext.lower() not in _IMAGE_EXTENSIONS:
+            continue
+        with open(path, "rb") as f:
+            mapping[base] = base64.b64encode(f.read()).decode("ascii")
+    return mapping
+
+
+def merge_cloud_db_with_local_images(cloud_db_result: dict) -> dict:
+    """将机器人 cloud-db 与本地人脸图片合并：按 name 匹配，匹配则写入 image_base64。"""
+    local_map = load_local_face_images()
+    for item in cloud_db_result.get("data") or []:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if name is not None and name in local_map:
+            item["image_base64"] = local_map[name]
+    return cloud_db_result
+
 
 # ============================= 回调工具函数 =====================================
 

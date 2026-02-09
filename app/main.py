@@ -18,7 +18,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import router
 from app.api_common import router as common_router
 from app.shared import rac, send_callback_to_cloud
-from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT, RELOAD, CLOUD_PUSH_INTERVAL
+from app.config import (
+    SECRET_KEY,
+    SERVER_HOST,
+    SERVER_PORT,
+    RELOAD,
+    CLOUD_PUSH_INTERVAL,
+    FACE_IMAGES_FOLDER,
+)
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +74,10 @@ def start_periodic_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时开启定时任务，关闭时停止"""
+    if not FACE_IMAGES_FOLDER or not os.path.isdir(FACE_IMAGES_FOLDER):
+        raise FileNotFoundError(
+            f"人脸图片文件夹不存在或未配置: FACE_IMAGES_FOLDER={FACE_IMAGES_FOLDER!r}，请在 config.py 中配置有效路径后重启"
+        )
     task, stop_event = start_periodic_task()
     logger.info("设置定时回调上报系统状态任务完成")
     # 设置 Agent 交互模式

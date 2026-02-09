@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 # 复用 api 中的机器人客户端，避免重复初始化
 from app.api import rac
+from app.shared import merge_cloud_db_with_local_images
 
 router = APIRouter(prefix="/api")
 
@@ -102,7 +103,9 @@ async def _tts_volume_set(params: dict) -> dict:
 
 async def _face_recognition_cloud_db(params: dict) -> dict:
     result = await rac.get_cloud_face_db_info()
-    return result if isinstance(result, dict) and "code" in result else _ok(result)
+    if not isinstance(result, dict) or "code" not in result:
+        return _ok(result)
+    return merge_cloud_db_with_local_images(result)
 
 
 async def _face_recognition_start(params: dict) -> dict:
