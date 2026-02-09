@@ -75,8 +75,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Agent 交互模式为 voice_face")
     # 切换运控状态机
-    await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
-    logger.info("切换运控状态机为 RL_LOCOMOTION_DEFAULT")
+    # await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
+    # logger.info("切换运控状态机为 RL_LOCOMOTION_DEFAULT")
     yield
     # 关闭时：通知停止 -> 取消任务 -> 等待结束
     stop_event.set()

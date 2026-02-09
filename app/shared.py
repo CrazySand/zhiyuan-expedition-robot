@@ -91,7 +91,9 @@ async def poll_nav_task_until_done(task_id: str):
             logging.warning(f"轮询导航任务状态失败 task_id={task_id}: {e}")
             return
         state = result.get("state")
+        logger.debug(f"导航任务状态: {state}")
         if state != "PncServiceState_RUNNING":
+            await rac.set_mc_action("McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO")
             await send_callback_to_cloud(
                 "navTaskFinished",
                 {"task_id": task_id, "state": state},

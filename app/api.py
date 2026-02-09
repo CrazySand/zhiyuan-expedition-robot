@@ -261,6 +261,7 @@ async def nav_planning_to_goal(
     point_id: int = Body(..., description="导航点ID"),
 ):
     """下发给定目标点 ID 的规划导航任务；后台每 5s 轮询状态，结束或失败时回调中控"""
+    await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
     current_working_map_id = (await rac.get_current_working_map())["data"]["map_id"]
     result = await rac.planning_navi_to_goal(
         task_id=task_id or 0,
