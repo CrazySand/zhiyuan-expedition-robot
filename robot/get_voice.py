@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import logging
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
@@ -14,9 +13,6 @@ import time
 import io
 import requests
 
-
-logger = logging.getLogger(__name__)
-
 # PC 回调接口配置（模块级别）
 PC_CALLBACK_URL = "http://127.0.0.1:8001/api/webhooks/asr/audio"
 X_API_KEY = "NZGNJZMSDZJD"
@@ -28,7 +24,7 @@ def callback_pc_api(audio_data: bytes):
     response = requests.post(
         PC_CALLBACK_URL, files=files, headers={"X-API-KEY": X_API_KEY}, timeout=10
     )
-    logger.info(f"ASR 回调响应: {response.json()}")
+    print(response.json())
 
 
 class AudioSubscriber(Node):
@@ -47,8 +43,8 @@ class AudioSubscriber(Node):
         self.vad_state_count = {}  # {stream_id: {state: count}}
 
         # 创建音频文件存储目录
-        self.audio_output_dir = "audio_recordings"
-        os.makedirs(self.audio_output_dir, exist_ok=True)
+        # self.audio_output_dir = "audio_recordings"
+        # os.makedirs(self.audio_output_dir, exist_ok=True)
 
         qos_profile = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -85,8 +81,12 @@ class AudioSubscriber(Node):
             import json
             from google.protobuf.json_format import MessageToDict
 
-            logger.debug(
-                f"{json.dumps(MessageToDict(processed_audio, preserving_proto_field_name=True), ensure_ascii=False, indent=2)}"
+            print(
+                json.dumps(
+                    MessageToDict(processed_audio, preserving_proto_field_name=True),
+                    ensure_ascii=False,
+                    indent=2,
+                )
             )
 
             # self.get_logger().info(
@@ -194,47 +194,10 @@ class AudioSubscriber(Node):
     def save_audio_segment(self, audio_data, stream_id):
         """保存音频段 16kHz, 16位, 单声道 PCM"""
         if len(audio_data) > 0:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-
-            # 按stream_id创建子目录
-            stream_dir = os.path.join(
-                self.audio_output_dir, f"stream_{stream_id}")
-            os.makedirs(stream_dir, exist_ok=True)
-
-            # 生成文件名
-            stream_names = {1: "internal_mic", 2: "external_mic"}
-            stream_name = stream_names.get(stream_id, f"stream_{stream_id}")
-            filename = f"{stream_name}_{timestamp}.pcm"
-            filepath = os.path.join(stream_dir, filename)
-
             try:
-                with open(filepath, "wb") as f:
-                    f.write(audio_data)
-
-                # 计算时长
-                sample_rate = 16000
-                bits_per_sample = 16
-                channels = 1
-                bytes_per_sample = bits_per_sample // 8
-                total_samples = len(
-                    audio_data) // (bytes_per_sample * channels)
-                duration_seconds = total_samples / sample_rate
-
-                # 打印诊断信息
-                vad_counts = self.vad_state_count.get(stream_id, {})
-                # self.get_logger().info(
-                #     f"音频段已保存: {filepath} (大小: {len(audio_data)} bytes, 时长: {duration_seconds:.2f}s) "
-                #     f"VAD统计: BEGIN={vad_counts.get(1, 0)} PROCESSING={vad_counts.get(2, 0)} END={vad_counts.get(3, 0)} NONE={vad_counts.get(0, 0)}"
-                # )
-
-                # 发送到 PC 回调接口
-                try:
-                    callback_pc_api(audio_data)
-                except Exception as e:
-                    self.get_logger().error(f"发送音频到回调接口失败: {e}")
-
+                callback_pc_api(audio_data)
             except Exception as e:
-                self.get_logger().error(f"保存音频文件失败: {e}")
+                self.get_logger().error(f"发送音频到回调接口失败: {e}")
 
     def get_buffer_info(self):
         """获取所有缓冲区的信息（用于调试）"""

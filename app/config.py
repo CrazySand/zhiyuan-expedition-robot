@@ -23,4 +23,4 @@ RELOAD = True
 FUN_ASR_MODEL = "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
 
 # TTS 播报完成回调：按字数估算时长（秒/字），用于 sleep 后回调中控
-TTS_SECONDS_PER_CHAR = 0.12
+TTS_SECONDS_PER_CHAR = 0.23

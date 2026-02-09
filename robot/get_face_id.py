@@ -33,10 +33,7 @@ from ros2_plugin_proto.msg import RosMsgWrapper
 from aimdk.protocol_pb2 import FaceIdResult
 
 from google.protobuf.json_format import MessageToDict
-import logging
 import requests
-
-logger = logging.getLogger(__name__)
 
 PC_CALLBACK_URL = "http://127.0.0.1:8001/api/webhooks/face-recognition"
 X_API_KEY = "NZGNJZMSDZJD"
@@ -46,7 +43,7 @@ def callback_pc_api(face_info: dict):
     """处理 FaceID 结果"""
     response = requests.post(PC_CALLBACK_URL, json=face_info, headers={
         "Content-Type": "application/json", "X-API-KEY": X_API_KEY})
-    logger.info(f"人脸回调响应: {response.json()}")
+    print(response.json())
 
 
 class FaceIdSubscriber(Node):

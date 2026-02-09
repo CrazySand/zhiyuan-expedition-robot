@@ -72,7 +72,13 @@ async def tts_finished_callback_delayed(trace_id: str, text: str):
 # ============================= 导航任务轮询 =====================================
 
 _NAV_POLL_INTERVAL = 5
-_NAV_TERMINAL_STATES = ("PncServiceState_SUCCESS", "PncServiceState_FAILED")
+
+# PncServiceState_UNDEFINED: 未知状态
+# PncServiceState_IDLE: 任务空闲中
+# PncServiceState_RUNNING: 任务运行中
+# PncServiceState_PAUSED: 任务暂停中
+# PncServiceState_SUCCESS: 任务完成
+# PncServiceState_FAILED: 任务失败
 
 
 async def poll_nav_task_until_done(task_id: str):
@@ -85,7 +91,7 @@ async def poll_nav_task_until_done(task_id: str):
             logging.warning(f"轮询导航任务状态失败 task_id={task_id}: {e}")
             return
         state = result.get("state")
-        if state in _NAV_TERMINAL_STATES:
+        if state != "PncServiceState_RUNNING":
             await send_callback_to_cloud(
                 "navTaskFinished",
                 {"task_id": task_id, "state": state},
