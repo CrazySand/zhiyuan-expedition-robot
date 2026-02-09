@@ -1,13 +1,17 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import router, rac, http_client
+from app.api import router
 from app.api_common import router as common_router
-from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT, RELOAD, CLOUD_PUSH_INTERVAL, CLOUD_EVENT_CALLBACK_URL
+from app.shared import rac, send_callback_to_cloud
+from app.config import SECRET_KEY, SERVER_HOST, SERVER_PORT, RELOAD, CLOUD_PUSH_INTERVAL
+
+logger = logging.getLogger(__name__)
 
 # ============================= 定时任务 =====================================
 
@@ -24,22 +28,8 @@ async def on_periodic_tick():
         "battery_percent": bms_state["data"]["charge"],  # 当前电量
         "alert_list": alert_list["data"]["alerts"],
     }
-    print(f"""\
-POST {CLOUD_EVENT_CALLBACK_URL}
-body: 
-    {{
-        "action": "statusReport",
-        "params": {{
-            "current_state": {system_state["cur_state"]},
-            "temperature": {bms_state["data"]["temperature"]},
-            "battery_percent": {bms_state["data"]["charge"]},
-            "alert_list": {alert_list["data"]["alerts"]}
-    }}
-    """)
-    await http_client.post(CLOUD_EVENT_CALLBACK_URL, json={
-        "action": "statusReport",
-        "params": params
-    })
+
+    await send_callback_to_cloud("statusReport", params)
 
 
 async def _periodic_loop(stop_event: asyncio.Event):
@@ -68,17 +58,17 @@ def start_periodic_task():
 async def lifespan(app: FastAPI):
     """应用生命周期：启动时开启定时任务，关闭时停止"""
     task, stop_event = start_periodic_task()
-    print("设置定时回调上报系统状态任务完成")
+    logger.info("设置定时回调上报系统状态任务完成")
     # 设置 Agent 交互模式
     if (await rac.get_agent_properties())["contents"]["properties"]["2"] != "voice_face":
         await rac.set_agent_properties("voice_face")
         await rac.agent_mode_reboot()
-        print("当前 Agent 交互模式不为 voice_face，已设置并重启 Agent")
+        logger.info("当前 Agent 交互模式不为 voice_face，已设置并重启 Agent")
     else:
-        print("Agent 交互模式为 voice_face")
+        logger.info("Agent 交互模式为 voice_face")
     # 切换运控状态机
     await rac.set_mc_action("RL_LOCOMOTION_DEFAULT")
-    print("切换运控状态机为 RL_LOCOMOTION_DEFAULT")
+    logger.info("切换运控状态机为 RL_LOCOMOTION_DEFAULT")
     yield
     # 关闭时：通知停止 -> 取消任务 -> 等待结束
     stop_event.set()

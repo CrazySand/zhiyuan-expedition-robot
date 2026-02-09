@@ -1,40 +1,10 @@
+import asyncio
 import tempfile
 import os
 import json
 from typing import Literal
-import httpx
 from fastapi import APIRouter, Body, File, Query, UploadFile
-from app.robot_api_client import RobotAPIClient
-from app.config import CLOUD_EVENT_CALLBACK_URL
-
-# =============================== ASR Tool ==========================================
-
-import shutil
-
-if not shutil.which("ffmpeg"):
-    raise Exception("未检测到 ffmpeg")
-
-from funasr import AutoModel
-from app.config import FUN_ASR_MODEL
-
-
-asr_model = AutoModel(
-    model=FUN_ASR_MODEL,
-    disable_update=True,
-    disable_pbar=True,
-)
-
-
-def recognize_audio(audio_path: str) -> str:
-    result = asr_model.generate(input=audio_path)
-    return result[0].get("text", "") if result else ""
-
-# =========================================================================
-
-
-http_client = httpx.AsyncClient(timeout=60)
-rac = RobotAPIClient(
-    http_client, orin_mapped_ip="127.0.0.1", x86_ip="192.168.1.115")
+from app.shared import rac, recognize_audio, send_callback_to_cloud, poll_nav_task_until_done, tts_finished_callback_delayed
 
 router = APIRouter(prefix="/api")
 
@@ -52,6 +22,7 @@ async def play_tts(text: str = Body(..., min_length=1, max_length=200, descripti
     """发起 TTS 播报"""
     result = await rac.play_tts(text)
     trace_id = result["trace_id"]
+    asyncio.create_task(tts_finished_callback_delayed(trace_id, text))
     return {
         "code": 0,
         "msg": "操作成功",
@@ -289,18 +260,20 @@ async def nav_planning_to_goal(
     task_id: str | None = Body(None, description="任务ID，None 表示自动生成"),
     point_id: int = Body(..., description="导航点ID"),
 ):
-    """下发给定目标点 ID 的规划导航任务"""
+    """下发给定目标点 ID 的规划导航任务；后台每 5s 轮询状态，结束或失败时回调中控"""
     current_working_map_id = (await rac.get_current_working_map())["data"]["map_id"]
     result = await rac.planning_navi_to_goal(
         task_id=task_id or 0,
         map_id=current_working_map_id,
         target_id=point_id,
-    ) 
+    )
+    out_task_id = result["task_id"]
+    asyncio.create_task(poll_nav_task_until_done(str(out_task_id)))
     return {
         "code": 0,
         "msg": "操作成功",
         "data": {
-            "task_id": result["task_id"]
+            "task_id": out_task_id
         },
     }
 
@@ -362,26 +335,14 @@ async def webhooks_face_recognition(data: dict = Body(..., embed=False)):
     face_id = data["face_id"]
     confidence = data["confidence"]
 
-    # await http_client.post(CLOUD_EVENT_CALLBACK_URL, json={
-    #     "action": "faceRecognition",
-    #     "params": {
-    #         "timestamp": timestamp,
-    #         "face_id": face_id,
-    #         "confidence": confidence,
-    #     }
-    # })
-    print(f"""\
-POST {CLOUD_EVENT_CALLBACK_URL}
-body: 
-    {{
-        "action": "faceRecognition",
-        "params": {{
-            "timestamp": {timestamp},
-            "face_id": {face_id},
-            "confidence": {confidence},
-        }}
-    }}
-    """)
+    await send_callback_to_cloud(
+        "faceRecognition",
+        {
+            "timestamp": timestamp,
+            "face_id": face_id,
+            "confidence": confidence,
+        },
+    )
 
     return {
         "code": 0,
@@ -404,22 +365,10 @@ async def webhooks_asr_audio(file: UploadFile = File(..., description="音频文
         path = tmp.name
         text = recognize_audio(path)
 
-        # await http_client.post(CLOUD_EVENT_CALLBACK_URL, json={
-        #     "action": "asr",
-        #     "params": {
-        #         "text": text,
-        #     }
-        # })
-        print(f"""\
-    POST {CLOUD_EVENT_CALLBACK_URL}
-    body: 
-        {{
-            "action": "asr",
-            "params": {{
-                "text": {text},
-            }}
-        }}
-        """)
+        await send_callback_to_cloud(
+            "asr",
+            {"text": text},
+        )
         return {
             "code": 0,
             "msg": "操作成功",

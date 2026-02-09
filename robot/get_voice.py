@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
@@ -14,6 +15,8 @@ import io
 import requests
 
 
+logger = logging.getLogger(__name__)
+
 # PC 回调接口配置（模块级别）
 PC_CALLBACK_URL = "http://127.0.0.1:8001/api/webhooks/asr/audio"
 X_API_KEY = "NZGNJZMSDZJD"
@@ -21,17 +24,11 @@ X_API_KEY = "NZGNJZMSDZJD"
 
 def callback_pc_api(audio_data: bytes):
     """将音频通过 multipart/form-data 发送到 PC 回调接口（模块级函数）"""
-    try:
-        files = {"file": ("audio.pcm", io.BytesIO(audio_data), "audio/pcm")}
-        response = requests.post(
-            PC_CALLBACK_URL, files=files, headers={"X-API-KEY": X_API_KEY}, timeout=10
-        )
-        try:
-            print(response.json())
-        except Exception:
-            print("callback response status:", response.status_code)
-    except Exception as e:
-        print(f"callback_pc_api 发送失败: {e}")
+    files = {"file": ("audio.pcm", io.BytesIO(audio_data), "audio/pcm")}
+    response = requests.post(
+        PC_CALLBACK_URL, files=files, headers={"X-API-KEY": X_API_KEY}, timeout=10
+    )
+    logger.info(f"ASR 回调响应: {response.json()}")
 
 
 class AudioSubscriber(Node):
@@ -88,13 +85,8 @@ class AudioSubscriber(Node):
             import json
             from google.protobuf.json_format import MessageToDict
 
-            print(
-                json.dumps(
-                    MessageToDict(processed_audio,
-                                  preserving_proto_field_name=True),
-                    ensure_ascii=False,
-                    indent=2,
-                )
+            logger.debug(
+                f"{json.dumps(MessageToDict(processed_audio, preserving_proto_field_name=True), ensure_ascii=False, indent=2)}"
             )
 
             # self.get_logger().info(
