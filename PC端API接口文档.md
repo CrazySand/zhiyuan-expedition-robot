@@ -414,6 +414,21 @@ X-API-KEY: <密钥>
 
 ---
 
+### 4.5 人脸识别「按次数自动关闭」（可选）
+
+**说明**：启动人脸识别后，机器人每识别成功一次会回调 PC 的 `/api/webhooks/face-recognition`。若启用「按次数自动关闭」，PC 端会在**累计收到指定次数**的回调后**自动调用停止人脸识别**，无需中控再发停止指令。
+
+**配置项**（`app/config.py`）：
+
+| 配置项 | 类型 | 说明 |
+|--------|------|------|
+| FACE_RECOGNITION_AUTO_STOP_ENABLED | bool | 是否启用「识别成功 N 次后自动关闭」，默认 `True`；设为 `False` 则关闭该功能 |
+| FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT | int | 达到此次数后自动停止人脸识别，默认 `3`；仅当上述开关为 `True` 时有效 |
+
+每次通过接口**启动**人脸识别时，计数会清零；达到设定次数后 PC 会自动调用机器人端停止人脸识别，并打日志。
+
+---
+
 ## 5. ASR（语音识别）
 
 ### 5.1 启动 ASR 程序
@@ -566,6 +581,8 @@ X-API-KEY: <密钥>
 ```
 
 若 current_working_map_id 非当前工作地图，返回 `code: 400`，`msg: "非当前工作地图"`。到点精度约 0.4 米。
+
+PC 端会后台轮询该任务状态；任务暂停或结束（成功/失败）时，会向中控推送事件（见《中控回调接口文档》navTaskPaused、navTaskFinished），params 包含 `task_id`、`state`、`point_id`（即本次下发的目标点 ID）。
 
 ---
 
@@ -739,6 +756,8 @@ X-API-KEY: <密钥>
 ### 10.1 人脸识别结果回调
 
 **POST** `/api/webhooks/face-recognition`
+
+机器人端识别人脸成功后调用本接口，PC 会将结果转发至中控（见《中控回调接口文档》faceRecognition）。若已启用「按次数自动关闭」（见 **4.5**），PC 会在累计收到设定次数（如 3 次）后自动停止人脸识别。
 
 **请求体（JSON）**
 

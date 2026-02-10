@@ -8,13 +8,13 @@ SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 8000
 
 # 云平台事件回调地址，用于主动/定时上报机器人状态 (POST, action + params)
-CLOUD_EVENT_CALLBACK_URL = "http://192.168.10.100:8890/robot/api/event"
+CLOUD_EVENT_CALLBACK_URL = "http://112.20.77.18:6687/robot/api/event"
 
 # 定时推送到中控的间隔（秒），默认 5 分钟
 CLOUD_PUSH_INTERVAL = 300
 
 # 是否启用云平台事件回调
-ENABLE_CLOUD_EVENT_CALLBACK = False
+ENABLE_CLOUD_EVENT_CALLBACK = True
 
 # 是否启用热重载（开发环境使用）
 RELOAD = True
