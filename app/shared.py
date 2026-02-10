@@ -15,6 +15,8 @@ from app.config import (
     ENABLE_CLOUD_EVENT_CALLBACK,
     TTS_SECONDS_PER_CHAR,
     FACE_IMAGES_FOLDER,
+    FACE_RECOGNITION_AUTO_STOP_ENABLED,
+    FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT,
 )
 
 # ============================= 客户端实例 =====================================
@@ -73,6 +75,44 @@ def merge_cloud_db_with_local_images(cloud_db_result: dict) -> dict:
     return cloud_db_result
 
 
+# ============================= 人脸识别「按次数自动关闭」 =====================================
+
+_face_recognition_callback_count = 0
+_face_recognition_callback_lock = asyncio.Lock()
+
+
+def reset_face_recognition_auto_stop_counter() -> None:
+    """启动人脸识别后调用，将回调计数清零（用于按次数自动关闭逻辑）"""
+    global _face_recognition_callback_count
+    _face_recognition_callback_count = 0
+
+
+async def on_face_recognition_webhook_received() -> None:
+    """
+    人脸识别 Webhook 每次被调用后执行：若启用了「按次数自动关闭」且达到设定次数，则停止人脸识别。
+    由 config 中 FACE_RECOGNITION_AUTO_STOP_ENABLED、FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT 控制。
+    """
+    if not FACE_RECOGNITION_AUTO_STOP_ENABLED or FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT <= 0:
+        return
+    global _face_recognition_callback_count
+    async with _face_recognition_callback_lock:
+        _face_recognition_callback_count += 1
+        count = _face_recognition_callback_count
+    if count >= FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT:
+        try:
+            await rac.stop_face_recognition()
+            logger.info(
+                "人脸识别已达 %s 次回调，已自动关闭 (FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT=%s)",
+                count,
+                FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT,
+            )
+        except Exception as e:
+            logger.warning("自动关闭人脸识别失败: %s", e)
+        finally:
+            async with _face_recognition_callback_lock:
+                _face_recognition_callback_count = 0
+
+
 # ============================= 回调工具函数 =====================================
 
 
@@ -117,7 +157,7 @@ _NAV_POLL_INTERVAL = 5
 # PncServiceState_FAILED: 任务失败
 
 
-async def poll_nav_task_until_done(task_id: str):
+async def poll_nav_task_until_done(task_id: str, point_id: int):
     """后台轮询导航任务状态，结束时回调中控并退出"""
     paused_callback_sent = False  # 标记是否已发送过 PAUSED 回调
     while True:
@@ -130,20 +170,16 @@ async def poll_nav_task_until_done(task_id: str):
         state = result.get("state")
         logger.debug(f"导航任务状态: {state}")
 
+        params = {"task_id": task_id, "state": state, "point_id": point_id}
+
         if state == "PncServiceState_PAUSED":
             if not paused_callback_sent:
                 await rac.set_mc_action("McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO")
-                await send_callback_to_cloud(
-                    "navTaskPaused",
-                    {"task_id": task_id, "state": state},
-                )
+                await send_callback_to_cloud("navTaskPaused", params)
                 paused_callback_sent = True
             continue
 
         if state != "PncServiceState_RUNNING":
             await rac.set_mc_action("McAction_RL_LOCOMOTION_ARM_EXT_JOINT_SERVO")
-            await send_callback_to_cloud(
-                "navTaskFinished",
-                {"task_id": task_id, "state": state},
-            )
+            await send_callback_to_cloud("navTaskFinished", params)
             return

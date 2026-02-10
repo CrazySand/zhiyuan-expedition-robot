@@ -27,3 +27,8 @@ TTS_SECONDS_PER_CHAR = 0.23
 
 # 展厅 PC 本地人脸图片文件夹（灵心平台上传的人脸），与机器人 cloud-db 合并后供中控同步；启动时若不存在则程序终止
 FACE_IMAGES_FOLDER = "/home/lan/Desktop/face_image"
+
+# 人脸识别：是否在识别成功 N 次后自动关闭（每次启动人脸识别时生效）
+FACE_RECOGNITION_AUTO_STOP_ENABLED = True
+# 达到此次数后自动关闭人脸识别（仅当 FACE_RECOGNITION_AUTO_STOP_ENABLED 为 True 时有效）
+FACE_RECOGNITION_AUTO_STOP_AFTER_COUNT = 3

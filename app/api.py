@@ -11,6 +11,8 @@ from app.shared import (
     poll_nav_task_until_done,
     tts_finished_callback_delayed,
     merge_cloud_db_with_local_images,
+    reset_face_recognition_auto_stop_counter,
+    on_face_recognition_webhook_received,
 )
 
 router = APIRouter(prefix="/api")
@@ -152,6 +154,7 @@ async def start_face_recognition():
             "data": None
         }
     result = await rac.start_face_recognition()
+    reset_face_recognition_auto_stop_counter()
     return result
 
 
@@ -280,7 +283,7 @@ async def nav_planning_to_goal(
         target_id=point_id,
     )
     out_task_id = result["task_id"]
-    asyncio.create_task(poll_nav_task_until_done(str(out_task_id)))
+    asyncio.create_task(poll_nav_task_until_done(str(out_task_id), point_id=point_id))
     return {
         "code": 0,
         "msg": "操作成功",
@@ -357,6 +360,7 @@ async def webhooks_face_recognition(data: dict = Body(..., embed=False)):
             "confidence": confidence,
         },
     )
+    await on_face_recognition_webhook_received()
 
     return {
         "code": 0,

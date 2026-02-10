@@ -15,6 +15,7 @@ from app.shared import (
     merge_cloud_db_with_local_images,
     tts_finished_callback_delayed,
     poll_nav_task_until_done,
+    reset_face_recognition_auto_stop_counter,
 )
 
 router = APIRouter(prefix="/api")
@@ -127,6 +128,7 @@ async def _face_recognition_start(params: dict) -> dict:
     if current_agent_mode not in ("voice_face", "normal"):
         return _err(400, "当前交互模式不是 voice_face 或 normal")
     result = await rac.start_face_recognition()
+    reset_face_recognition_auto_stop_counter()
     return result if isinstance(result, dict) and "code" in result else _ok(result)
 
 
@@ -209,7 +211,7 @@ async def _nav_planning_to_goal(params: dict) -> dict:
     if result.get("state") != "CommonState_SUCCESS":
         return _err(400, "地图ID或目标点ID不正确")
     out_task_id = result.get("task_id")
-    asyncio.create_task(poll_nav_task_until_done(str(out_task_id)))
+    asyncio.create_task(poll_nav_task_until_done(str(out_task_id), point_id=point_id))
     return _ok({"task_id": out_task_id})
 
 
